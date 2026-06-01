@@ -136,10 +136,14 @@ async function scanSkillDir(dirPath: string, source: 'custom' | 'bundled'): Prom
 
 export async function GET() {
   try {
+    const conn = await getConnection();
+    const hermesHome =
+      conn?.homePath || process.env.HERMES_HOME || path.join(process.env.HOME || '', '.hermes');
+
     // Scan both custom and bundled skill directories
-    const customSkills = await scanSkillDir(path.join(HERMES_HOME, 'skills'), 'custom');
+    const customSkills = await scanSkillDir(path.join(hermesHome, 'skills'), 'custom');
     const bundledSkills = await scanSkillDir(
-      path.join(HERMES_HOME, 'hermes-agent', 'skills'), 'bundled'
+      path.join(hermesHome, 'hermes-agent', 'skills'), 'bundled'
     );
     
     const allSkills = [...customSkills, ...bundledSkills]
