@@ -54,7 +54,7 @@ const initialNodes = [
   { id: '1', type: 'nexus', position: { x: 250, y: 50 }, data: { label: 'Strategic Advisor', icon: 'solar:masks-linear', type: 'Persona' } },
   { id: '2', type: 'nexus', position: { x: 100, y: 150 }, data: { label: 'SOUL.md', icon: 'solar:document-text-linear', type: 'Identity' } },
   { id: '3', type: 'nexus', position: { x: 400, y: 150 }, data: { label: 'Web Search', icon: 'solar:global-linear', type: 'Skill' } },
-  { id: '4', type: 'nexus', position: { x: 250, y: 250 }, data: { label: 'Bruno', icon: 'solar:user-linear', type: 'Core' } },
+  { id: '4', type: 'nexus', position: { x: 250, y: 250 }, data: { label: 'You', icon: 'solar:user-linear', type: 'Core' } },
 ];
 
 const initialEdges = [

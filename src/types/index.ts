@@ -550,7 +550,7 @@ export const SIDEBAR_SECTIONS: NavSection[] = [
     id: 'brain',
     label: 'Brain',
     items: [
-      { id: 'brain', label: 'Overview', icon: 'solar:brain-linear', href: '/brain' },
+      { id: 'brain', label: 'Overview', icon: 'mingcute:brain-line', href: '/brain' },
       { id: 'personas', label: 'Personas', icon: 'solar:masks-linear', href: '/brain/personas' },
       { id: 'knowledge', label: 'Knowledge', icon: 'solar:book-bookmark-linear', href: '/brain/knowledge' },
       { id: 'memories', label: 'Memories', icon: 'solar:database-linear', href: '/brain/memories' },

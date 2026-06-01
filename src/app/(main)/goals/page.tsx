@@ -9,7 +9,7 @@ export default function GoalsPage() {
         <Icon icon="solar:target-linear" className="text-orange-500 glow-orange" width={22} />
         <div>
           <h1 className="text-lg font-medium text-slate-200">Goals</h1>
-          <p className="text-xs text-slate-500">Track progress toward billionaire</p>
+          <p className="text-xs text-slate-500">Track progress toward your objectives</p>
         </div>
       </div>
 
@@ -19,16 +19,16 @@ export default function GoalsPage() {
           <div className="flex items-center gap-3 mb-4">
             <Icon icon="solar:crown-linear" className="text-orange-500" width={24} />
             <div>
-              <h2 className="text-lg font-bold text-slate-200">Become a Billionaire</h2>
-              <p className="text-xs text-slate-500">Primary objective</p>
+              <h2 className="text-lg font-bold text-slate-200">Primary Objective</h2>
+              <p className="text-xs text-slate-500">Your top-level goal</p>
             </div>
           </div>
           <div className="w-full bg-[#1a1d24] rounded-full h-3 mb-2">
             <div className="bg-gradient-to-r from-orange-500 to-orange-400 h-3 rounded-full" style={{ width: '0%' }} />
           </div>
           <div className="flex justify-between text-[10px] text-slate-500">
-            <span>$0</span>
-            <span>$1,000,000,000</span>
+            <span>0%</span>
+            <span>100%</span>
           </div>
         </div>
       </div>

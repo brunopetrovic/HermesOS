@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
-
-const HERMES_HOME = process.env.HERMES_HOME || path.join(process.env.HOME || '/home/ox', '.hermes');
+import { getConnection } from '@/lib/connection';
 
 interface HermesGoal {
   id: string;
@@ -30,6 +29,9 @@ interface GoalsFile {
 }
 
 export async function GET() {
+  const conn = await getConnection();
+  const HERMES_HOME = conn?.homePath || path.join(process.env.HOME || '', '.hermes');
+
   try {
     const goalsPath = path.join(HERMES_HOME, 'memories', 'goals.json');
     

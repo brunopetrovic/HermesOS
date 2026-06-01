@@ -103,7 +103,7 @@ export default function NexusPage() {
               <Icon icon="solar:atom-linear" className="text-orange-500" width={24} />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-200">Bruno × Una</p>
+              <p className="text-sm font-medium text-slate-200">You × Agent</p>
               <p className="text-xs text-slate-500">Merger active · Synchronization: 92%</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
