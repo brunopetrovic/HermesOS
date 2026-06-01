@@ -7,7 +7,6 @@ import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { CalendarEvent } from '@/types';
 import { Card } from '@/components/ui/card';
-import { useInstanceStore } from '@/lib/store/instance-store';
 
 const locales = {
   'en-US': enUS,

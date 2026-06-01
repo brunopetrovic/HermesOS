@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { formatRelative, formatTime } from '@/lib/utils';
+import { formatTime } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { Icon } from '@iconify/react';
 import type { UnaMessage as UnaMessageType } from '@/lib/store/una-store';

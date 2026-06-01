@@ -196,6 +196,7 @@ function NexusCard({
       href={href}
       className={`neu-card rounded-2xl p-5 hover:border-[#333a47]/60 transition-all group relative overflow-hidden`}
     >
+      <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 transition-opacity group-hover:opacity-100`} />
       <div className="relative z-10">
         <div className={`w-10 h-10 rounded-xl bg-[#0c0e12] border ${borderColor} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-[inset_2px_2px_5px_rgba(0,0,0,0.8)]`}>
           <Icon icon={icon} className={iconColor} width={20} />

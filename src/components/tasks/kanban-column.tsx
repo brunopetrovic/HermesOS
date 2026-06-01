@@ -5,7 +5,6 @@ import { useDroppable } from '@dnd-kit/core';
 import { Task, KanbanColumn as KanbanColumnType } from '@/types';
 import { TaskCard } from './task-card';
 import { Icon } from '@iconify/react';
-import { cn } from '@/lib/utils';
 
 interface KanbanColumnProps {
   column: KanbanColumnType;

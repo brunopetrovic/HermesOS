@@ -1,24 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getConnection } from '@/lib/connection';
 
-const HERMES_HOME = process.env.HERMES_HOME || path.join(process.env.HOME || '/home/ox', '.hermes');
-
-// We can't use better-sqlite3 without native dependencies, so we'll use
-// a lightweight approach: read the DB via the gateway's API if available,
-// or provide a summary from the file system stats.
-const HERMES_GATEWAY_URL = process.env.HERMES_GATEWAY_URL || 'http://100.122.147.84:8642';
-
+// We can't use better-sqlite3 without native dependencies, so this endpoint
+// returns safe session-store metadata for now. A later SQLite bridge can add
+// real paginated session search without changing the client contract.
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
-  const limit = parseInt(searchParams.get('limit') || '20');
-  const offset = parseInt(searchParams.get('offset') || '0');
-  const source = searchParams.get('source') || null;
-  const search = searchParams.get('q') || null;
+  const query = {
+    limit: parseInt(searchParams.get('limit') || '20'),
+    offset: parseInt(searchParams.get('offset') || '0'),
+    source: searchParams.get('source') || null,
+    search: searchParams.get('q') || null,
+  };
+
+  const conn = await getConnection();
+  const hermesHome = conn?.homePath || path.join(process.env.HOME || '', '.hermes');
 
   try {
     // Check if state.db exists and get its stats
-    const dbPath = path.join(HERMES_HOME, 'state.db');
+    const dbPath = path.join(/* turbopackIgnore: true */ hermesHome, 'state.db');
     let dbExists = false;
     let dbSize = 0;
     
@@ -36,19 +38,16 @@ export async function GET(req: NextRequest) {
         total: 0,
         dbSize: 0,
         dbExists: false,
+        query,
         source: 'hermes-native',
         lastSync: new Date().toISOString(),
       });
     }
 
-    // Try to get sessions via the Hermes gateway API (if it exposes session data)
-    // For now, we return metadata about the DB and available sources
-    // The actual session listing will use the SQLite bridge when we add it
-    
     // Read the WAL file size too for accuracy
     let walSize = 0;
     try {
-      const walStats = await fs.stat(dbPath + '-wal');
+      const walStats = await fs.stat(`${dbPath}-wal`);
       walSize = walStats.size;
     } catch {
       // No WAL file
@@ -61,6 +60,7 @@ export async function GET(req: NextRequest) {
       walSize,
       dbExists: true,
       dbPath,
+      query,
       note: 'Session listing requires SQLite bridge — use the Hermes CLI for full session search. Gateway integration coming soon.',
       availableViaCli: [
         'hermes sessions list',

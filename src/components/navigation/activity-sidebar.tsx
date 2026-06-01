@@ -12,7 +12,7 @@ interface ActivitySidebarProps {
 }
 
 export function ActivitySidebar({ isOpen, onClose }: ActivitySidebarProps) {
-  const { cronJobs, cronsLoading, fetchCrons, systemStatus, gateway, fetchStatus } = useHermesStore();
+  const { cronJobs, fetchCrons, systemStatus, gateway, fetchStatus } = useHermesStore();
 
   useEffect(() => {
     fetchCrons();

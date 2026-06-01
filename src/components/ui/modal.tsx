@@ -1,7 +1,6 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { AnimatePresence } from 'framer-motion';
 import { Icon } from '@iconify/react';
 import { type HTMLAttributes, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';

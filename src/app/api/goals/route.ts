@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
     return NextResponse.json(goals);
-  } catch (_error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch goals' }, { status: 500 });
   }
 }
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       },
     });
     return NextResponse.json(goal);
-  } catch (_error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to create goal' }, { status: 500 });
   }
 }

@@ -24,7 +24,7 @@ interface CronJob {
   created_at?: string;
 }
 
-function parseNextRun(schedule: string, timezone?: string): string | null {
+function parseNextRun(schedule: string): string | null {
   // Basic cron next-run estimation for display purposes
   // Returns ISO string of approximate next run
   try {
@@ -81,7 +81,7 @@ export async function GET() {
     // Enrich with computed fields
     const enrichedJobs = jobs.map(job => ({
       ...job,
-      nextRunEstimate: job.next_run_at || parseNextRun(job.schedule, job.timezone),
+      nextRunEstimate: job.next_run_at || parseNextRun(job.schedule),
       scheduleHuman: describeCronSchedule(job.schedule, job.timezone),
       isOverdue: job.next_run_at ? new Date(job.next_run_at) < new Date() : false,
     }));

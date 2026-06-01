@@ -63,8 +63,6 @@ export function Sidebar() {
             </p>
             {section.items.map((item) => {
               const active = isActive(item.href);
-              const isNexusItem = item.href.startsWith('/nexus');
-
               return (
                 <Link
                   key={item.id}

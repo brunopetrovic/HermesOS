@@ -1,10 +1,9 @@
 'use client';
 
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Stars, Text, Line, Sphere, Html } from '@react-three/drei';
+import { OrbitControls, Stars, Line, Html } from '@react-three/drei';
 import { useRef, useMemo, useState } from 'react';
 import * as THREE from 'three';
-import { Icon } from '@iconify/react';
 
 // Sample data for the 3D graph (could be shared with 2D)
 const nodesData = [
@@ -72,12 +71,6 @@ function Node({ position, color, label, isCentral = false }: { position: [number
 }
 
 function GraphConnections() {
-  const lineMaterial = useMemo(() => new THREE.LineBasicMaterial({
-    color: '#f97316',
-    transparent: true,
-    opacity: 0.3,
-  }), []);
-
   // Compute fixed positions for the demo layout
   const positions = useMemo(() => {
     const pos = [];

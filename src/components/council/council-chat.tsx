@@ -1,15 +1,14 @@
 'use client';
 
 import { useCouncilStore } from '@/lib/store/council-store';
-import { useInstanceStore } from '@/lib/store/instance-store';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn, formatTime } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Icon } from '@iconify/react';
 import { useState, useRef, useEffect } from 'react';
-import { CouncilMessage, Agent } from '@/types';
+import { Agent } from '@/types';
 
 export function CouncilChat() {
   const { messages, agents, isLoading, addMessage, setLoading } = useCouncilStore();

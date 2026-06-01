@@ -27,7 +27,7 @@ HermesOS is a Next.js app today and is being prepared for native Linux, Windows,
 ## Install
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -66,7 +66,13 @@ Set `UNOX_CONFIG_DIR` to store that file somewhere else.
 
 ## Environment variables
 
-HermesOS can also read connection defaults from environment variables:
+HermesOS can also read connection defaults from environment variables. Start by copying the example file:
+
+```bash
+cp .env.example .env.local
+```
+
+Then edit `.env.local` as needed:
 
 ```bash
 HERMES_GATEWAY_URL=http://localhost:8642

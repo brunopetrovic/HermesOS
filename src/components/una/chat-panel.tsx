@@ -1,6 +1,5 @@
 'use client';
 
-import { cn } from '@/lib/utils';
 import { useUnaStore, UnaMessage, ApprovalQueueItem } from '@/lib/store/una-store';
 import { ChatBubble } from './chat-bubble';
 import { ApprovalPrompt } from './approval-prompt';

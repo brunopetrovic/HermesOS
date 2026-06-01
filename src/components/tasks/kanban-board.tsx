@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -96,8 +96,7 @@ export function KanbanBoard({ columns, tasks, onTaskMove }: KanbanBoardProps) {
     if (!over) return;
 
     const taskId = active.id as string;
-    const overId = over.id as string;
-    
+
     const task = localTasks.find(t => t.id === taskId);
     if (task && onTaskMove) {
       onTaskMove(taskId, task.status);

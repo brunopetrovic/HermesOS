@@ -5,7 +5,7 @@ import { useHermesStore } from '@/lib/store/hermes-store';
 import { useEffect } from 'react';
 
 export default function BrainSkillsPage() {
-  const { skills, skillsStats, skillsLoading, fetchSkills, allTags } = useHermesStore();
+  const { skills, skillsStats, skillsLoading, fetchSkills } = useHermesStore();
 
   useEffect(() => { fetchSkills(); }, [fetchSkills]);
 
