@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@iconify/react';
 import { cn } from '@/lib/utils';
+import { BRAND } from '@/lib/brand';
 
 const CATEGORY_LABELS: Record<CommandCategory, string> = {
   navigation: 'Navigation',
@@ -244,7 +245,7 @@ export function CommandBar() {
                     select
                   </span>
                 </div>
-                <span className="text-slate-700">UNOX</span>
+                <span className="text-slate-700">{BRAND.name}</span>
               </div>
             </div>
           </motion.div>

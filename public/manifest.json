@@ -1,11 +1,11 @@
 {
-  "name": "Hermes Command Center",
-  "short_name": "Hermes",
-  "description": "Bruno's Digital Command Center",
+  "name": "UNOX — Agent Command Center",
+  "short_name": "UNOX",
+  "description": "A unified command center for running, monitoring, and orchestrating your local AI agents.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f0f1a",
-  "theme_color": "#c9a84c",
+  "background_color": "#000000",
+  "theme_color": "#f97316",
   "icons": [
     {
       "src": "/next.svg",

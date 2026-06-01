@@ -59,8 +59,8 @@ export default function PersonalPage() {
 
         <div className="hidden sm:block h-8 w-px bg-gradient-to-b from-transparent via-[#333a47] to-transparent mx-1 md:mx-2" />
 
-        <button className="px-3 md:px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors">Bruno</button>
-        <button className="px-3 md:px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors">Una</button>
+        <button className="px-3 md:px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors">Mine</button>
+        <button className="px-3 md:px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors">Agent</button>
 
         <button className="sm:ml-auto md:ml-2 flex flex-1 sm:flex-none justify-between items-center gap-2 px-4 py-2 rounded-xl neu-active text-sm font-medium text-slate-300">
           All projects

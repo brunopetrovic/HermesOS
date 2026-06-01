@@ -20,7 +20,7 @@ model User {
   passwordHash String
   name         String?
   avatarUrl    String?
-  timezone     String   @default("Europe/Zagreb")
+  timezone     String   @default("UTC")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -51,7 +51,7 @@ model UserSettings {
   notifyGoalUpdate   Boolean @default(true)
 
   // Hermes integration
-  hermesGatewayUrl  String? // e.g. http://100.122.147.84:8644
+  hermesGatewayUrl  String? // e.g. http://localhost:8642 or a Tailscale/LAN address
   hermesApiKey      String?
   hermesSyncEnabled Boolean @default(true)
 

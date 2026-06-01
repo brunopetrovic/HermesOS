@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { BRAND } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: 'UNOX — Personal Operating System',
-  description: 'Sovereign personal OS — merger portal between Bruno & Una',
+  title: `${BRAND.name} — ${BRAND.tagline}`,
+  description: BRAND.description,
   manifest: '/manifest.json',
   icons: {
     icon: '/favicon.ico',

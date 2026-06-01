@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { BRAND } from '@/lib/brand';
 import { useInstanceStore } from '@/lib/store/instance-store';
 import { SIDEBAR_SECTIONS } from '@/types';
 import { Icon } from '@iconify/react';
@@ -36,9 +37,9 @@ export function Sidebar() {
           </div>
           <div>
             <h1 className="text-lg font-medium tracking-tight text-slate-200 drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">
-              UNOX
+              {BRAND.name}
             </h1>
-            <p className="text-[10px] text-slate-600 -mt-0.5">Una & Bruno</p>
+            <p className="text-[10px] text-slate-600 -mt-0.5">{BRAND.tagline}</p>
           </div>
         </div>
         {/* Mobile Close Button */}
@@ -107,11 +108,11 @@ export function Sidebar() {
       <div className="p-6 border-t border-[#333a47]/20 shadow-[0_-1px_0_rgba(0,0,0,0.8)] flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-[#0c0e12] shadow-[inset_2px_2px_5px_rgba(0,0,0,0.8),inset_-1px_-1px_2px_rgba(255,255,255,0.02)] border border-black flex items-center justify-center">
-            <span className="text-xs font-bold text-slate-400">B</span>
+            <Icon icon="solar:user-linear" className="text-slate-400" width={16} />
           </div>
           <div>
-            <p className="text-xs font-medium text-slate-300">Bruno</p>
-            <p className="text-[10px] text-slate-600">Goal: Billionaire</p>
+            <p className="text-xs font-medium text-slate-300">Operator</p>
+            <p className="text-[10px] text-slate-600">Local session</p>
           </div>
         </div>
         <div className="w-2 h-2 rounded-full bg-green-500 glow-green animate-pulse" />

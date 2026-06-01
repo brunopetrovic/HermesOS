@@ -11,7 +11,7 @@ export default function DashboardPage() {
         <Icon icon="solar:home-2-linear" className="text-orange-500 glow-orange" width={22} />
         <div>
           <h1 className="text-lg font-medium text-slate-200">Mission Control</h1>
-          <p className="text-xs text-slate-500">Billionaire Engine Dashboard</p>
+          <p className="text-xs text-slate-500">Command center overview</p>
         </div>
       </div>
 

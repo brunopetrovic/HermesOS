@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
-
-const HERMES_HOME = process.env.HERMES_HOME || path.join(process.env.HOME || '/home/ox', '.hermes');
-const HERMES_GATEWAY_URL = process.env.HERMES_GATEWAY_URL || 'http://100.122.147.84:8642';
+import { getConnection } from '@/lib/connection';
 
 interface GatewayState {
   pid: number;
@@ -32,11 +30,14 @@ async function checkProcessAlive(pid: number): Promise<boolean> {
   }
 }
 
-async function checkGatewayHttp(): Promise<boolean> {
+async function checkGatewayHttp(gatewayUrl: string, apiKey?: string): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(`${HERMES_GATEWAY_URL}/health`, { signal: controller.signal });
+    const res = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/health`, {
+      signal: controller.signal,
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+    });
     clearTimeout(timeout);
     return res.ok;
   } catch {
@@ -45,6 +46,21 @@ async function checkGatewayHttp(): Promise<boolean> {
 }
 
 export async function GET() {
+  const conn = await getConnection();
+  if (!conn?.gatewayUrl) {
+    return NextResponse.json({
+      status: 'not_connected',
+      gateway: { state: 'not_connected', pid: null, processAlive: false, httpHealthy: false, updatedAt: null, exitReason: null },
+      platforms: {},
+      model: 'Unknown',
+      configuredPlatforms: [],
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  const HERMES_HOME = conn.homePath || path.join(process.env.HOME || '', '.hermes');
+  const HERMES_GATEWAY_URL = conn.gatewayUrl;
+
   try {
     // 1. Read gateway_state.json
     const statePath = path.join(HERMES_HOME, 'gateway_state.json');
@@ -61,7 +77,7 @@ export async function GET() {
     }
 
     // 4. Check HTTP health endpoint
-    const httpHealthy = await checkGatewayHttp();
+    const httpHealthy = await checkGatewayHttp(HERMES_GATEWAY_URL, conn.apiKey);
 
     // 5. Read config.yaml for model info
     let activeModel = 'Unknown';
