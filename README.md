@@ -1,12 +1,12 @@
-# HermesOS
+# UNOX
 
-HermesOS is a local-first agent command center for connecting to and operating AI agents such as Hermes Agent, OpenClaw-compatible agents, and custom OpenAI-compatible gateways.
+UNOX is a local-first agent command center for connecting to and operating AI agents such as Hermes Agent, OpenClaw-compatible agents, and custom OpenAI-compatible gateways.
 
 The goal is simple: install the GUI, connect your local agent gateway, then use one responsive desktop/tablet/mobile interface to monitor status, memory, skills, cron jobs, goals, sessions, workflows, and future agent-control tools.
 
 ## Current status
 
-HermesOS is a Next.js app today and is being prepared for native Linux, Windows, and macOS packaging later.
+UNOX is a Next.js app today and is being prepared for native Linux, Windows, and macOS packaging later.
 
 - Local-first by default
 - No required cloud provider
@@ -46,7 +46,7 @@ npm run start
 
 ## First-run onboarding
 
-On first launch, HermesOS opens the local agent setup flow.
+On first launch, UNOX opens the local agent setup flow.
 
 You can configure:
 
@@ -66,7 +66,7 @@ Set `UNOX_CONFIG_DIR` to store that file somewhere else.
 
 ## Environment variables
 
-HermesOS can also read connection defaults from environment variables. Start by copying the example file:
+UNOX can also read connection defaults from environment variables. Start by copying the example file:
 
 ```bash
 cp .env.example .env.local
@@ -117,5 +117,5 @@ Current lint policy: errors should stay at zero. Warnings are tracked cleanup de
 See:
 
 ```text
-docs/HERMESOS_PRODUCT_ARCHITECTURE.md
+docs/UNOX_PRODUCT_ARCHITECTURE.md
 ```

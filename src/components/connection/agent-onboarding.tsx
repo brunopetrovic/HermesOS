@@ -224,10 +224,10 @@ export function AgentOnboarding() {
               ) : null}
             </div>
             <h2 className="text-2xl font-black tracking-tight text-white md:text-4xl">
-              Connect HermesOS to your local agent
+              Connect UNOX to your local agent
             </h2>
             <p className="max-w-3xl text-sm leading-relaxed text-slate-400 md:text-base">
-              HermesOS stays clean by default: no bundled personal paths, no hidden cloud dependency, no exposed secrets. Pick an agent, test its gateway, then sync local status, memory, skills, crons, sessions, and future tools through one saved connection.
+              UNOX stays clean by default: no bundled personal paths, no hidden cloud dependency, no exposed secrets. Pick an agent, test its gateway, then sync local status, memory, skills, crons, sessions, and future tools through one saved connection.
             </p>
           </div>
           <button

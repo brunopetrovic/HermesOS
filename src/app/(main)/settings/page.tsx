@@ -81,7 +81,7 @@ export default function SettingsPage() {
                 <div>
                   <p className="text-sm md:text-base font-medium text-text-primary mb-1">Local Agent Gateway</p>
                   <p className="text-xs text-text-secondary leading-relaxed">
-                    Connect HermesOS to Hermes Agent, OpenClaw, or any compatible local gateway. The saved connection syncs gateway health, local memory, skills, crons, sessions, and future desktop controls without hardcoded user-specific paths.
+                    Connect UNOX to Hermes Agent, OpenClaw, or any compatible local gateway. The saved connection syncs gateway health, local memory, skills, crons, sessions, and future desktop controls without hardcoded user-specific paths.
                   </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">

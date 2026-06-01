@@ -1,6 +1,6 @@
-# HermesOS Product Architecture & Reference Research
+# UNOX Product Architecture & Reference Research
 
-HermesOS is being shaped into a clean, local-first GUI for running and supervising local AI agents such as Hermes Agent, OpenClaw-compatible agents, and custom OpenAI-compatible gateways.
+UNOX is being shaped into a clean, local-first GUI for running and supervising local AI agents such as Hermes Agent, OpenClaw-compatible agents, and custom OpenAI-compatible gateways.
 
 ## Non-negotiables
 
@@ -55,7 +55,7 @@ HermesOS is being shaped into a clean, local-first GUI for running and supervisi
 
 ### eigent-ai/eigent
 - Useful: specialized multi-agent workforce, local privacy posture, MCP/tool assignment.
-- Avoid: coupling HermesOS to CAMEL or another runtime.
+- Avoid: coupling UNOX to CAMEL or another runtime.
 
 ### EKKOLearnAI/hermes-web-ui
 - Useful: session search, file upload/download, usage analytics, profile-aware UI.
@@ -63,7 +63,7 @@ HermesOS is being shaped into a clean, local-first GUI for running and supervisi
 
 ### crshdn/mission-control
 - Useful: agent orchestration panels, build/test/review/PR pipeline visibility, repo readiness checks.
-- Strong fit: mission/workflow cockpit inside HermesOS Nexus.
+- Strong fit: mission/workflow cockpit inside UNOX Nexus.
 
 ### crabwise-ai/crabwalk
 - Useful: real-time companion monitor, live tool-call/thinking graph, QR/mobile monitor flow, zero-config local detection.
