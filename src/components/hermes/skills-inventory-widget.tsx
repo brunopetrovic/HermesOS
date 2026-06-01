@@ -21,18 +21,18 @@ const fetchSkills = useHermesStore(s => s.fetchSkills);;
   }, [fetchSkills]);
 
   // Extract unique tags
-  const allTags = [...new Set(skills.flatMap((s: any) => s.tags || []))].sort();
+  const allTags = [...new Set(skills.flatMap((s) => s.tags || []))].sort();
 
   // Filter skills
-  const filtered = skills.filter((s: any) => {
+  const filtered = skills.filter((s) => {
     const matchesSearch = !searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTag = !selectedTag || (s.tags || []).includes(selectedTag);
     return matchesSearch && matchesTag;
   });
 
   const displaySkills = compact ? filtered.slice(0, 8) : filtered;
-  const customCount = skills.filter((s: any) => s.source === 'custom').length;
-  const bundledCount = skills.filter((s: any) => s.source === 'bundled').length;
+  const customCount = skills.filter((s) => s.source === 'custom').length;
+  const bundledCount = skills.filter((s) => s.source === 'bundled').length;
 
   return (
     <div className="neu-card rounded-2xl p-4 md:p-5 hover:border-orange-500/30">
@@ -94,7 +94,7 @@ const fetchSkills = useHermesStore(s => s.fetchSkills);;
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {displaySkills.map((skill: any) => (
+          {displaySkills.map((skill) => (
             <div
               key={skill.name}
               className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0c0e12]/60 border border-black/30 hover:border-orange-500/20 transition-colors"

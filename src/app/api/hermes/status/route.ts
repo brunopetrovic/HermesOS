@@ -63,11 +63,11 @@ export async function GET() {
 
   try {
     // 1. Read gateway_state.json
-    const statePath = path.join(HERMES_HOME, 'gateway_state.json');
+    const statePath = path.join(/* turbopackIgnore: true */ HERMES_HOME, 'gateway_state.json');
     const gatewayState = await readJsonFile<GatewayState>(statePath);
 
     // 2. Read gateway.pid
-    const pidPath = path.join(HERMES_HOME, 'gateway.pid');
+    const pidPath = path.join(/* turbopackIgnore: true */ HERMES_HOME, 'gateway.pid');
     const pidData = await readJsonFile<{ pid: number; kind: string }>(pidPath);
 
     // 3. Check if process is alive
@@ -81,9 +81,9 @@ export async function GET() {
 
     // 5. Read config.yaml for model info
     let activeModel = 'Unknown';
-    let configuredPlatforms: string[] = [];
+    const configuredPlatforms: string[] = [];
     try {
-      const configContent = await fs.readFile(path.join(HERMES_HOME, 'config.yaml'), 'utf-8');
+      const configContent = await fs.readFile(path.join(/* turbopackIgnore: true */ HERMES_HOME, 'config.yaml'), 'utf-8');
       // Simple regex extraction — avoids needing a yaml dependency
       const modelMatch = configContent.match(/^\s*model:\s*["']?([^"'\n]+)/m);
       if (modelMatch) activeModel = modelMatch[1].trim();

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getConnection,
+  getConnectionDiscovery,
   saveConnection,
   clearConnection,
   type AgentConnection,
@@ -11,13 +12,14 @@ const AGENT_TYPES: AgentType[] = ['hermes', 'openclaw', 'custom'];
 
 /** Returns the current connection with the API key masked. */
 export async function GET() {
-  const conn = await getConnection();
+  const [conn, discovery] = await Promise.all([getConnection(), getConnectionDiscovery()]);
   if (!conn) {
-    return NextResponse.json({ connected: false, connection: null });
+    return NextResponse.json({ connected: false, connection: null, discovery });
   }
   return NextResponse.json({
     connected: Boolean(conn.gatewayUrl),
     connection: maskConnection(conn),
+    discovery,
   });
 }
 
@@ -35,8 +37,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // eslint-disable-next-line no-new
-    new URL(body.gatewayUrl);
+    const parsedGatewayUrl = new URL(body.gatewayUrl);
+    if (!['http:', 'https:'].includes(parsedGatewayUrl.protocol)) {
+      return NextResponse.json({ error: 'Gateway URL must use http or https' }, { status: 400 });
+    }
   } catch {
     return NextResponse.json({ error: 'Gateway URL is not a valid URL' }, { status: 400 });
   }

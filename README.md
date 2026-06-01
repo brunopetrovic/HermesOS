@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HermesOS
 
-## Getting Started
+HermesOS is a local-first agent command center for connecting to and operating AI agents such as Hermes Agent, OpenClaw-compatible agents, and custom OpenAI-compatible gateways.
 
-First, run the development server:
+The goal is simple: install the GUI, connect your local agent gateway, then use one responsive desktop/tablet/mobile interface to monitor status, memory, skills, cron jobs, goals, sessions, workflows, and future agent-control tools.
+
+## Current status
+
+HermesOS is a Next.js app today and is being prepared for native Linux, Windows, and macOS packaging later.
+
+- Local-first by default
+- No required cloud provider
+- No secrets shown in the UI
+- Connection onboarding built into the app
+- Hermes Agent, OpenClaw-compatible, and custom gateway presets
+- Desktop/tablet/mobile responsive shell
+
+## Requirements
+
+- Node.js 22+
+- npm 10+
+- A local agent gateway, for example:
+  - Hermes Agent gateway on `http://localhost:8642`
+  - OpenClaw-compatible HTTP gateway/dashboard
+  - Custom OpenAI-compatible local gateway
+
+## Install
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+For a production build:
 
-## Learn More
+```bash
+npm run build
+npm run start
+```
 
-To learn more about Next.js, take a look at the following resources:
+## First-run onboarding
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+On first launch, HermesOS opens the local agent setup flow.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+You can configure:
 
-## Deploy on Vercel
+- Agent type: `Hermes Agent`, `OpenClaw / Claw-compatible`, or `Custom`
+- Display label
+- Gateway URL
+- Optional bearer token / API key
+- Optional local agent home path
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The connection is saved locally in:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```text
+~/.unox/connection.json
+```
+
+Set `UNOX_CONFIG_DIR` to store that file somewhere else.
+
+## Environment variables
+
+HermesOS can also read connection defaults from environment variables:
+
+```bash
+HERMES_GATEWAY_URL=http://localhost:8642
+HERMES_HOME=~/.hermes
+HERMES_API_KEY=
+
+OPENCLAW_GATEWAY_URL=http://localhost:3333
+OPENCLAW_WORKSPACE=~/.openclaw-workspace
+OPENCLAW_API_KEY=
+
+AGENT_TYPE=custom
+AGENT_GATEWAY_URL=http://localhost:11434
+AGENT_HOME=~/.agent
+AGENT_API_KEY=
+```
+
+Saved onboarding config takes priority over environment defaults.
+
+## Gateway probing
+
+The onboarding tester checks common local-agent endpoints:
+
+- `/health`
+- `/v1/models`
+- `/api/health`
+- `/api/status`
+- `/`
+
+A gateway-only connection is enough for basic reachability. Providing a home path unlocks richer local file-backed panels such as status, memory, skills, crons, and sessions.
+
+## Development commands
+
+```bash
+npm run lint
+npm run build
+```
+
+Current lint policy: errors should stay at zero. Warnings are tracked cleanup debt.
+
+## Architecture notes
+
+See:
+
+```text
+docs/HERMESOS_PRODUCT_ARCHITECTURE.md
+```

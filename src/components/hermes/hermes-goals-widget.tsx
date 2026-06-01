@@ -14,7 +14,7 @@ const fetchGoals = useHermesStore(s => s.fetchGoals);;
     fetchGoals();
   }, [fetchGoals]);
 
-  const activeGoals = goals.filter((g: any) => g.status === 'active');
+  const activeGoals = goals.filter((g) => g.status === 'active');
 
   return (
     <div className="neu-card rounded-2xl p-4 md:p-5 hover:border-orange-500/30">
@@ -45,9 +45,9 @@ const fetchGoals = useHermesStore(s => s.fetchGoals);;
         </div>
       ) : (
         <div className="space-y-5">
-          {goals.map((goal: any) => {
+          {goals.map((goal) => {
             const tasks = goal.tasks || [];
-            const done = tasks.filter((t: any) => t.status === 'done' || t.status === 'completed').length;
+            const done = tasks.filter((t) => t.status === 'done' || t.status === 'completed').length;
             const total = tasks.length;
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
@@ -81,7 +81,7 @@ const fetchGoals = useHermesStore(s => s.fetchGoals);;
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-slate-600">{done}/{total} tasks</span>
                   <div className="flex items-center gap-1">
-                    {tasks.slice(0, 5).map((t: any, i: number) => (
+                    {tasks.slice(0, 5).map((t, i: number) => (
                       <span
                         key={i}
                         className={cn(

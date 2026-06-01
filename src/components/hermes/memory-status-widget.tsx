@@ -67,7 +67,7 @@ const fetchMemory = useHermesStore(s => s.fetchMemory);;
             {/* File breakdown */}
             {memoryL1.length > 0 && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-600 font-mono pl-1">
-                {memoryL1.map((f: any) => (
+                {memoryL1.map((f) => (
                   <span key={f.name}>{f.name}: {Math.round(f.usage || 0)}%</span>
                 ))}
               </div>
@@ -109,10 +109,10 @@ const fetchMemory = useHermesStore(s => s.fetchMemory);;
                 </p>
               </div>
               <span className="text-xs text-slate-400 font-mono">
-                {(memoryL3.reduce((a: number, f: any) => a + (f.size || 0), 0) / 1024).toFixed(1)} KB
+                {(memoryL3.reduce((a, f) => a + (f.size || 0), 0) / 1024).toFixed(1)} KB
               </span>
             </div>
-            {memoryL3.slice(0, 3).map((f: any) => (
+            {memoryL3.slice(0, 3).map((f) => (
               <div key={f.name} className="flex items-center justify-between pl-8 text-[10px]">
                 <span className="text-slate-500 font-mono truncate">{f.name}</span>
                 <span className="text-slate-600 shrink-0 ml-2">{(f.size / 1024).toFixed(1)} KB</span>

@@ -6,6 +6,7 @@ import { Icon } from '@iconify/react';
 import { cn } from '@/lib/utils';
 import { usePathname } from 'next/navigation';
 import { InstanceType } from '@/types';
+import { AgentConnectionPill } from '@/components/connection/agent-connection-pill';
 
 interface TopHeaderProps {
   onToggleActivity: () => void;
@@ -58,6 +59,8 @@ export function TopHeader({ onToggleActivity }: TopHeaderProps) {
 
       {/* Right Header Actions */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-3">
+        <AgentConnectionPill />
+
         {/* Realm Badge */}
         <div className={cn(
           'hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium',

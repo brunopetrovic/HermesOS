@@ -20,7 +20,7 @@ const fetchCrons = useHermesStore(s => s.fetchCrons);;
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-medium text-slate-300">Cron Jobs</h3>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-            {cronJobs.filter((j: any) => j.enabled !== false).length} active
+            {cronJobs.filter((j) => j.enabled !== false).length} active
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -43,7 +43,7 @@ const fetchCrons = useHermesStore(s => s.fetchCrons);;
         </div>
       ) : (
         <div className="space-y-3">
-          {cronJobs.map((job: any) => (
+          {cronJobs.map((job) => (
             <div
               key={job.id}
               className="flex items-center gap-3 p-3 rounded-xl bg-[#0c0e12]/60 border border-black/30"

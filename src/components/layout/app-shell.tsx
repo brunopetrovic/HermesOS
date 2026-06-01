@@ -7,6 +7,7 @@ import { ActivitySidebar } from '@/components/navigation/activity-sidebar';
 import { UnaOrb } from '@/components/una/una-orb';
 import { CommandBar } from '@/components/command-bar/command-bar';
 import { SoundscapeController } from '@/components/ambient/soundscape-controller';
+import { AgentOnboarding } from '@/components/connection/agent-onboarding';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
@@ -65,7 +66,6 @@ export function AppShell({ children }: AppShellProps) {
 
   const isOverlayVisible = isSidebarOpen || isActivityOpen;
   const currentRealm = getRealmFromPathname(pathname);
-  const isNexus = currentRealm === 'nexus';
 
   return (
     <div className={cn('flex w-full h-full relative', focusModeActive && 'focus-mode')} data-realm={currentRealm}>
@@ -114,6 +114,9 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Omnipresent: Soundscapes */}
       <SoundscapeController />
+
+      {/* First-run and settings-triggered local agent onboarding */}
+      <AgentOnboarding />
     </div>
   );
 }

@@ -28,7 +28,7 @@ function parseFrontmatter(content: string): Record<string, string | string[]> {
     const kvMatch = line.match(/^(\w[\w-]*):\s*(.+)/);
     if (kvMatch) {
       const key = kvMatch[1];
-      let value = kvMatch[2].trim();
+      const value = kvMatch[2].trim();
       
       // Parse array syntax: [tag1, tag2, ...]
       if (value.startsWith('[') && value.endsWith(']')) {

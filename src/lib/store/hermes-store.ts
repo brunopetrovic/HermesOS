@@ -91,7 +91,7 @@ interface HermesSkill {
 
 export interface HermesState {
   // System Status
-  systemStatus: 'online' | 'degraded' | 'offline' | 'loading' | 'error';
+  systemStatus: 'online' | 'degraded' | 'offline' | 'loading' | 'error' | 'not_connected';
   gateway: GatewayInfo | null;
   platforms: Record<string, PlatformInfo>;
   activeModel: string;

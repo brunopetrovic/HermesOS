@@ -47,7 +47,7 @@ export default function GoalsPage() {
 
       {/* Daily Metrics */}
       <div className="px-2 animate-slide-up stagger-4">
-        <h2 className="text-sm font-medium text-slate-400 mb-3">Today's Metrics</h2>
+        <h2 className="text-sm font-medium text-slate-400 mb-3">Today&apos;s Metrics</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <MetricCard label="Revenue" value="$0" icon="solar:wallet-money-linear" />
           <MetricCard label="Outreach" value="0" icon="solar:letter-linear" />

@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Icon } from '@iconify/react';
 import Link from 'next/link';
+import { openAgentOnboarding } from '@/components/connection/agent-onboarding';
 
 export default function SettingsPage() {
   const { animationEnabled, toggleAnimation } = useInstanceStore();
@@ -74,23 +75,32 @@ export default function SettingsPage() {
           </section>
 
           <section className="space-y-3 md:space-y-4">
-            <h2 className="text-[10px] md:text-xs font-semibold text-text-secondary uppercase tracking-widest px-2">Advanced</h2>
+            <h2 className="text-[10px] md:text-xs font-semibold text-text-secondary uppercase tracking-widest px-2">Agent connection</h2>
             <Card className="p-5 md:p-6 bg-surface border-border border-dashed">
               <div className="flex flex-col gap-4">
                 <div>
-                  <p className="text-sm md:text-base font-medium text-text-primary mb-1">Hermes Gateway</p>
+                  <p className="text-sm md:text-base font-medium text-text-primary mb-1">Local Agent Gateway</p>
                   <p className="text-xs text-text-secondary leading-relaxed">
-                    Configure advanced agent behaviors, custom skills, and long-running cron jobs directly in the native Hermes dashboard.
+                    Connect HermesOS to Hermes Agent, OpenClaw, or any compatible local gateway. The saved connection syncs gateway health, local memory, skills, crons, sessions, and future desktop controls without hardcoded user-specific paths.
                   </p>
                 </div>
-                <Link 
-                  href="http://100.122.147.84:8644" 
-                  target="_blank"
-                  className="w-full flex items-center justify-center gap-2 h-11 px-4 text-sm font-bold rounded-[var(--radius-md)] border border-accent text-accent hover:bg-accent/10 transition-all active:scale-[0.98]"
-                >
-                  <span>Open Hermes Native Dashboard</span>
-                  <Icon icon="solar:square-arrow-right-up-linear" className="w-4 h-4" />
-                </Link>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    onClick={openAgentOnboarding}
+                    className="w-full flex items-center justify-center gap-2 h-11 px-4 text-sm font-bold rounded-[var(--radius-md)] border border-accent text-accent hover:bg-accent/10 transition-all active:scale-[0.98]"
+                  >
+                    <span>Configure Agent Connection</span>
+                    <Icon icon="solar:plug-circle-linear" className="w-4 h-4" />
+                  </button>
+                  <Link 
+                    href="http://localhost:8644" 
+                    target="_blank"
+                    className="w-full flex items-center justify-center gap-2 h-11 px-4 text-sm font-bold rounded-[var(--radius-md)] border border-border text-text-secondary hover:border-accent/60 hover:text-accent transition-all active:scale-[0.98]"
+                  >
+                    <span>Open Native Dashboard</span>
+                    <Icon icon="solar:square-arrow-right-up-linear" className="w-4 h-4" />
+                  </Link>
+                </div>
               </div>
             </Card>
           </section>
