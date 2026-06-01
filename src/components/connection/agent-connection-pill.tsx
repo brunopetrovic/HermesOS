@@ -5,19 +5,26 @@ import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { openAgentOnboarding } from '@/components/connection/agent-onboarding';
 
+type AgentType = 'hermes' | 'openclaw' | 'openai' | 'http' | 'process' | 'custom';
+
 type ConnectionState = {
   connected: boolean;
   connection: null | {
-    agentType: 'hermes' | 'openclaw' | 'custom';
+    agentType: AgentType;
+    adapterType?: string;
+    connectionMode?: string;
     label: string;
     gatewayUrl: string;
     hasApiKey?: boolean;
   };
 };
 
-const agentIcons = {
+const agentIcons: Record<AgentType, string> = {
   hermes: 'solar:bolt-circle-linear',
   openclaw: 'solar:widget-5-linear',
+  openai: 'solar:cloud-linear',
+  http: 'solar:link-circle-linear',
+  process: 'solar:terminal-linear',
   custom: 'solar:code-circle-linear',
 };
 

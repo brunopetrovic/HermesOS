@@ -5,22 +5,52 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-type AgentType = 'hermes' | 'openclaw' | 'custom';
+type AgentType = 'hermes' | 'openclaw' | 'openai' | 'http' | 'process' | 'custom';
+type HarnessConnectionMode = 'local-cli' | 'gateway' | 'webhook' | 'command';
 
 type MaskedConnection = {
   agentType: AgentType;
+  adapterType: string;
+  connectionMode: HarnessConnectionMode;
   label: string;
   gatewayUrl: string;
   homePath?: string;
   connectedAt?: string;
+  capabilities?: string[];
+  adapterConfig?: Record<string, unknown>;
   hasApiKey?: boolean;
   apiKeyPreview?: string | null;
+};
+
+type HarnessConfigField = {
+  key: string;
+  label: string;
+  type: 'text' | 'url' | 'secret' | 'path' | 'textarea' | 'number';
+  required?: boolean;
+  placeholder?: string;
+  helper?: string;
+};
+
+type HarnessPreset = {
+  agentType: AgentType;
+  adapterType: string;
+  label: string;
+  shortLabel: string;
+  gatewayUrl: string;
+  description: string;
+  icon: string;
+  connectionMode: HarnessConnectionMode;
+  paperclipPattern: string;
+  capabilities: string[];
+  healthEndpoints: string[];
+  configFields: HarnessConfigField[];
+  safetyNotes: string[];
 };
 
 type Discovery = {
   defaultGatewayUrl: string;
   detectedHomes: { agentType: AgentType; path: string; exists: boolean; source: string }[];
-  presets: { agentType: AgentType; label: string; gatewayUrl: string; description: string }[];
+  presets: HarnessPreset[];
 };
 
 type ConnectionResponse = {
@@ -42,25 +72,53 @@ const EMPTY_FORM = {
   gatewayUrl: 'http://localhost:8642',
   apiKey: '',
   homePath: '',
+  adapterConfigJson: '{}',
 };
 
 const AGENT_COPY: Record<AgentType, { title: string; helper: string; icon: string }> = {
   hermes: {
     title: 'Hermes Agent',
-    helper: 'Best default for Hermes Agent gateway installs. Reads local memory, skills, crons, sessions, and status when the home path is available.',
+    helper: 'Local Hermes adapter: gateway + optional home-path sync for memory, skills, crons, sessions, and status.',
     icon: 'solar:bolt-circle-linear',
   },
   openclaw: {
-    title: 'OpenClaw / Claw-compatible',
-    helper: 'Use when your local agent exposes an HTTP gateway or command-center API. Keep it localhost-bound unless you intentionally proxy it.',
+    title: 'OpenClaw Gateway',
+    helper: 'Gateway adapter for OpenClaw / Claw-compatible agents that wake through an HTTP control plane.',
     icon: 'solar:widget-5-linear',
   },
+  openai: {
+    title: 'OpenAI-compatible gateway',
+    helper: 'For Ollama, LM Studio, vLLM, LocalAI, or any model gateway exposing /v1 endpoints.',
+    icon: 'solar:cloud-linear',
+  },
+  http: {
+    title: 'HTTP Webhook Agent',
+    helper: 'Generic webhook/API adapter for agents with a wake endpoint.',
+    icon: 'solar:link-circle-linear',
+  },
+  process: {
+    title: 'Local Process Agent',
+    helper: 'Command/script harness. Saved as config only; setup never auto-runs arbitrary commands.',
+    icon: 'solar:terminal-linear',
+  },
   custom: {
-    title: 'Custom OpenAI-compatible gateway',
-    helper: 'For Ollama, LM Studio, custom agents, or any local gateway that responds on /health, /v1/models, /api/status, or root.',
+    title: 'Custom Agent Gateway',
+    helper: 'Fallback for custom local or private-network agent control APIs.',
     icon: 'solar:code-circle-linear',
   },
 };
+
+function defaultAdapterConfig(agentType: AgentType, preset?: HarnessPreset | null) {
+  if (agentType === 'process') return { command: '', args: '', cwd: '', timeoutSec: 300 };
+  if (agentType === 'http') return { method: 'POST', payloadTemplate: { source: 'unox', action: 'heartbeat' } };
+  if (agentType === 'hermes') return { command: 'hermes', profile: 'default' };
+  if (agentType === 'openai') return { model: '' };
+  return preset?.adapterType ? { adapterType: preset.adapterType } : {};
+}
+
+function prettyJson(value: unknown) {
+  return JSON.stringify(value, null, 2);
+}
 
 export function AgentOnboarding() {
   const [loading, setLoading] = useState(true);
@@ -96,6 +154,7 @@ export function AgentOnboarding() {
           gatewayUrl: data.connection.gatewayUrl,
           apiKey: '',
           homePath: data.connection.homePath || '',
+          adapterConfigJson: prettyJson(data.connection.adapterConfig || defaultAdapterConfig(data.connection.agentType)),
         });
       } else {
         setForm({
@@ -123,6 +182,10 @@ export function AgentOnboarding() {
   }, []);
 
   const selectedCopy = AGENT_COPY[form.agentType];
+  const selectedPreset = useMemo(
+    () => discovery?.presets.find(item => item.agentType === form.agentType) || null,
+    [discovery, form.agentType]
+  );
   const detectedHome = useMemo(
     () => discovery?.detectedHomes.find(item => item.agentType === form.agentType && item.exists),
     [discovery, form.agentType]
@@ -137,6 +200,7 @@ export function AgentOnboarding() {
       label: preset?.label || AGENT_COPY[agentType].title,
       gatewayUrl: preset?.gatewayUrl || current.gatewayUrl,
       homePath: home?.path || current.homePath,
+      adapterConfigJson: prettyJson(defaultAdapterConfig(agentType, preset)),
     }));
     setTestResult(null);
     setError(null);
@@ -147,10 +211,23 @@ export function AgentOnboarding() {
     setError(null);
     setTestResult(null);
     try {
+      let adapterConfig: Record<string, unknown> = {};
+      try {
+        adapterConfig = form.adapterConfigJson.trim() ? JSON.parse(form.adapterConfigJson) : {};
+      } catch {
+        setError('Adapter config must be valid JSON.');
+        setTesting(false);
+        return;
+      }
       const res = await fetch('/api/connection/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gatewayUrl: form.gatewayUrl, apiKey: form.apiKey || undefined }),
+        body: JSON.stringify({
+          agentType: form.agentType,
+          gatewayUrl: form.gatewayUrl,
+          apiKey: form.apiKey || undefined,
+          adapterConfig,
+        }),
       });
       const data = (await res.json()) as TestResult;
       setTestResult(data);
@@ -166,6 +243,14 @@ export function AgentOnboarding() {
     setSaving(true);
     setError(null);
     try {
+      let adapterConfig: Record<string, unknown> = {};
+      try {
+        adapterConfig = form.adapterConfigJson.trim() ? JSON.parse(form.adapterConfigJson) : {};
+      } catch {
+        setError('Adapter config must be valid JSON.');
+        setSaving(false);
+        return;
+      }
       const res = await fetch('/api/connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -175,6 +260,7 @@ export function AgentOnboarding() {
           gatewayUrl: form.gatewayUrl,
           apiKey: form.apiKey || undefined,
           homePath: form.homePath || undefined,
+          adapterConfig,
         }),
       });
       const data = await res.json();
@@ -242,7 +328,8 @@ export function AgentOnboarding() {
         <div className="grid gap-5 p-4 md:grid-cols-[0.85fr_1.15fr] md:p-6">
           <section className="space-y-3">
             <h3 className="px-1 text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Agent preset</h3>
-            {(['hermes', 'openclaw', 'custom'] as AgentType[]).map(agentType => {
+            {(discovery?.presets || []).map(preset => {
+              const agentType = preset.agentType;
               const copy = AGENT_COPY[agentType];
               const isSelected = form.agentType === agentType;
               return (
@@ -261,8 +348,16 @@ export function AgentOnboarding() {
                       <Icon icon={copy.icon} width={22} />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-bold text-slate-100">{copy.title}</p>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-500">{copy.helper}</p>
+                      <p className="font-bold text-slate-100">{preset.label}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500">{preset.description}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-slate-400">
+                          {preset.adapterType}
+                        </span>
+                        <span className="rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-orange-200">
+                          {preset.connectionMode}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </button>
@@ -305,6 +400,27 @@ export function AgentOnboarding() {
               </div>
             </div>
 
+            {selectedPreset ? (
+              <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-4 text-xs text-slate-300">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-slate-700 bg-slate-950/70 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-slate-400">
+                    {selectedPreset.adapterType}
+                  </span>
+                  <span className="rounded-full border border-orange-500/25 bg-orange-500/10 px-2 py-1 text-[10px] uppercase tracking-wider text-orange-200">
+                    {selectedPreset.connectionMode}
+                  </span>
+                </div>
+                <p className="leading-relaxed text-slate-400">{selectedPreset.paperclipPattern}</p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {selectedPreset.capabilities.map(capability => (
+                    <span key={capability} className="rounded-full border border-[#333a47] bg-[#11141a] px-2 py-1 text-[10px] uppercase tracking-wider text-slate-400">
+                      {capability}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1.5 sm:col-span-1">
                 <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Display label</span>
@@ -345,6 +461,18 @@ export function AgentOnboarding() {
                   className="h-11 w-full rounded-xl border border-[#333a47]/60 bg-[#11141a] px-3 font-mono text-sm text-slate-100 outline-none transition focus:border-orange-500/60"
                   placeholder="~/.hermes or ~/.openclaw-workspace"
                 />
+              </label>
+              <label className="space-y-1.5 sm:col-span-2">
+                <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Adapter config JSON</span>
+                <textarea
+                  value={form.adapterConfigJson}
+                  onChange={e => setForm(current => ({ ...current, adapterConfigJson: e.target.value }))}
+                  className="min-h-28 w-full rounded-xl border border-[#333a47]/60 bg-[#11141a] px-3 py-3 font-mono text-xs text-slate-100 outline-none transition focus:border-orange-500/60"
+                  spellCheck={false}
+                />
+                <span className="text-[11px] leading-relaxed text-slate-500">
+                  Paperclip-style adapter config: command/profile for Hermes, webhook payloads for HTTP agents, or process command metadata. UNOX stores it; execution remains explicit.
+                </span>
               </label>
             </div>
 

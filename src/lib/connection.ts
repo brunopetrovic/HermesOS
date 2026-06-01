@@ -17,18 +17,36 @@
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
+import {
+  HARNESS_PRESETS,
+  defaultLabel,
+  getHarnessPreset,
+  isAgentType,
+  type AgentType,
+  type HarnessCapability,
+  type HarnessConnectionMode,
+  type HarnessConfigField,
+} from '@/lib/agent-harnesses';
 
-export type AgentType = 'hermes' | 'openclaw' | 'custom';
+export type { AgentType } from '@/lib/agent-harnesses';
 
 export interface AgentConnection {
   /** Which kind of agent is connected. */
   agentType: AgentType;
+  /** Paperclip-style adapter type, e.g. hermes_local or openclaw_gateway. */
+  adapterType: string;
+  /** How this harness is reached or invoked. */
+  connectionMode: HarnessConnectionMode;
   /** Display name for the connected agent (shown in the UI). */
   label: string;
-  /** Base URL of the agent gateway, e.g. http://localhost:8642 */
+  /** Base URL of the agent gateway, e.g. http://localhost:8642; process adapters use process://local. */
   gatewayUrl: string;
   /** Optional bearer token for the gateway. */
   apiKey?: string;
+  /** Optional adapter-specific config copied from the onboarding form. */
+  adapterConfig?: Record<string, unknown>;
+  /** Capabilities declared by the selected harness preset. */
+  capabilities?: HarnessCapability[];
   /**
    * Optional local filesystem path to the agent's home directory
    * (e.g. ~/.hermes). Used to read goals, memory, skills, and crons when the
@@ -44,9 +62,18 @@ export interface ConnectionDiscovery {
   defaultGatewayUrl: string;
   presets: {
     agentType: AgentType;
+    adapterType: string;
     label: string;
+    shortLabel: string;
     gatewayUrl: string;
     description: string;
+    icon: string;
+    connectionMode: HarnessConnectionMode;
+    paperclipPattern: string;
+    capabilities: HarnessCapability[];
+    healthEndpoints: string[];
+    configFields: HarnessConfigField[];
+    safetyNotes: string[];
   }[];
   detectedHomes: {
     agentType: AgentType;
@@ -69,26 +96,10 @@ const CONFIG_PATH = path.join(CONFIG_DIR, 'connection.json');
 
 const DEFAULT_GATEWAY_URL = 'http://localhost:8642';
 
-const PRESETS: ConnectionDiscovery['presets'] = [
-  {
-    agentType: 'hermes',
-    label: 'Hermes Agent',
-    gatewayUrl: process.env.HERMES_GATEWAY_URL || DEFAULT_GATEWAY_URL,
-    description: 'Hermes Agent local gateway, usually bound to localhost:8642.',
-  },
-  {
-    agentType: 'openclaw',
-    label: 'OpenClaw Agent',
-    gatewayUrl: process.env.OPENCLAW_GATEWAY_URL || process.env.CLAWDBOT_URL || 'http://localhost:3333',
-    description: 'OpenClaw-compatible local dashboard or gateway endpoint.',
-  },
-  {
-    agentType: 'custom',
-    label: 'Custom Agent Gateway',
-    gatewayUrl: process.env.AGENT_GATEWAY_URL || 'http://localhost:11434',
-    description: 'Any local OpenAI-compatible or agent-control HTTP gateway.',
-  },
-];
+const PRESETS: ConnectionDiscovery['presets'] = HARNESS_PRESETS.map((preset) => ({
+  ...preset,
+  gatewayUrl: normalizeGatewayUrl(preset.gatewayUrl),
+}));
 
 function homeDir(): string {
   return os.homedir() || process.env.HOME || '/tmp';
@@ -126,8 +137,7 @@ function envConnection(): Partial<AgentConnection> {
 }
 
 function parseAgentType(value?: string): AgentType | undefined {
-  if (value === 'hermes' || value === 'openclaw' || value === 'custom') return value;
-  return undefined;
+  return isAgentType(value) ? value : undefined;
 }
 
 function expandHome(value: string): string {
@@ -173,11 +183,19 @@ export async function getConnection(): Promise<AgentConnection | null> {
     return null;
   }
 
+  const agentType = merged.agentType || 'hermes';
+  const preset = getHarnessPreset(agentType);
+  const gatewayUrl = normalizeGatewayUrl(merged.gatewayUrl || preset.gatewayUrl || DEFAULT_GATEWAY_URL);
+
   return {
-    agentType: merged.agentType || 'hermes',
-    label: merged.label || defaultLabel(merged.agentType || 'hermes'),
-    gatewayUrl: normalizeGatewayUrl(merged.gatewayUrl || DEFAULT_GATEWAY_URL),
+    agentType,
+    adapterType: merged.adapterType || preset.adapterType,
+    connectionMode: merged.connectionMode || preset.connectionMode,
+    label: merged.label || defaultLabel(agentType),
+    gatewayUrl,
     apiKey: merged.apiKey,
+    adapterConfig: merged.adapterConfig,
+    capabilities: preset.capabilities,
     homePath: merged.homePath ? expandHome(merged.homePath) : undefined,
     connectedAt: merged.connectedAt,
   };
@@ -235,14 +253,31 @@ export async function saveConnection(
   input: Partial<AgentConnection>
 ): Promise<AgentConnection> {
   const existing = (await readFileConfig()) || {};
+  const agentType = input.agentType || existing.agentType || 'hermes';
+  const preset = getHarnessPreset(agentType);
+  const gatewayUrl = normalizeGatewayUrl(input.gatewayUrl || existing.gatewayUrl || preset.gatewayUrl || DEFAULT_GATEWAY_URL);
+  const adapterType = input.adapterType || (input.agentType ? preset.adapterType : existing.adapterType) || preset.adapterType;
+  const connectionMode = input.connectionMode || (input.agentType ? preset.connectionMode : existing.connectionMode) || preset.connectionMode;
+  const adapterChanged =
+    existing.agentType !== undefined &&
+    (existing.agentType !== agentType || existing.adapterType !== adapterType || existing.connectionMode !== connectionMode);
+  const adapterConfig =
+    typeof input.adapterConfig === 'object' && input.adapterConfig
+      ? input.adapterConfig
+      : adapterChanged
+        ? {}
+        : typeof existing.adapterConfig === 'object' && existing.adapterConfig
+          ? existing.adapterConfig
+          : {};
   const next: AgentConnection = {
-    agentType: input.agentType || existing.agentType || 'hermes',
-    label:
-      input.label ||
-      existing.label ||
-      defaultLabel(input.agentType || existing.agentType || 'hermes'),
-    gatewayUrl: normalizeGatewayUrl(input.gatewayUrl || existing.gatewayUrl || DEFAULT_GATEWAY_URL),
+    agentType,
+    adapterType,
+    connectionMode,
+    label: input.label || existing.label || defaultLabel(agentType),
+    gatewayUrl,
     apiKey: input.apiKey ?? existing.apiKey,
+    adapterConfig,
+    capabilities: preset.capabilities,
     homePath: input.homePath ? expandHome(input.homePath) : existing.homePath,
     connectedAt: new Date().toISOString(),
   };
@@ -261,17 +296,6 @@ export async function clearConnection(): Promise<void> {
   }
 }
 
-function defaultLabel(type: AgentType): string {
-  switch (type) {
-    case 'hermes':
-      return 'Hermes Agent';
-    case 'openclaw':
-      return 'OpenClaw Agent';
-    default:
-      return 'Custom Agent';
-  }
-}
-
 /**
  * Probes a gateway to verify reachability. Checks common local-agent and
  * OpenAI-compatible endpoints before accepting root as a degraded success.
@@ -279,13 +303,13 @@ function defaultLabel(type: AgentType): string {
 export async function probeGateway(
   gatewayUrl: string,
   apiKey?: string,
-  timeoutMs = 5000
+  timeoutMs = 5000,
+  endpoints = ['/health', '/v1/models', '/api/health', '/api/status', '/']
 ): Promise<GatewayProbeResult> {
   const base = normalizeGatewayUrl(gatewayUrl);
   const headers: Record<string, string> = {};
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
-  const endpoints = ['/health', '/v1/models', '/api/health', '/api/status', '/'];
   let lastStatus: number | null = null;
 
   for (const endpoint of endpoints) {
