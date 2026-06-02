@@ -6,6 +6,7 @@ import {
   isPlainRecord,
   isSensitiveUrlQueryKey,
 } from '@/lib/public-agent-config';
+import { requireUser } from '@/lib/auth';
 
 /**
  * Tests a harness connection.
@@ -13,6 +14,8 @@ import {
  * - Local process harnesses validate config shape only; setup never executes commands.
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
   let gatewayUrl: string | undefined;
   let apiKey: string | undefined;
   let agentType: AgentType | undefined;

@@ -2,7 +2,7 @@
 
 import { useHermesStore } from '@/lib/store/hermes-store';
 import { Icon } from '@iconify/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface SkillsInventoryWidgetProps {
@@ -11,8 +11,8 @@ interface SkillsInventoryWidgetProps {
 
 export function SkillsInventoryWidget({ compact = true }: SkillsInventoryWidgetProps) {
   const skills = useHermesStore(s => s.skills);
-const skillsLoading = useHermesStore(s => s.skillsLoading);
-const fetchSkills = useHermesStore(s => s.fetchSkills);;
+  const skillsLoading = useHermesStore(s => s.skillsLoading);
+  const fetchSkills = useHermesStore(s => s.fetchSkills);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
@@ -21,18 +21,33 @@ const fetchSkills = useHermesStore(s => s.fetchSkills);;
   }, [fetchSkills]);
 
   // Extract unique tags
-  const allTags = [...new Set(skills.flatMap((s) => s.tags || []))].sort();
+  const allTags = useMemo(
+    () => [...new Set(skills.flatMap((s) => s.tags || []))].sort(),
+    [skills]
+  );
 
   // Filter skills
-  const filtered = skills.filter((s) => {
-    const matchesSearch = !searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTag = !selectedTag || (s.tags || []).includes(selectedTag);
-    return matchesSearch && matchesTag;
-  });
+  const filtered = useMemo(
+    () => skills.filter((s) => {
+      const matchesSearch = !searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesTag = !selectedTag || (s.tags || []).includes(selectedTag);
+      return matchesSearch && matchesTag;
+    }),
+    [skills, searchQuery, selectedTag]
+  );
 
-  const displaySkills = compact ? filtered.slice(0, 8) : filtered;
-  const customCount = skills.filter((s) => s.source === 'custom').length;
-  const bundledCount = skills.filter((s) => s.source === 'bundled').length;
+  const displaySkills = useMemo(
+    () => (compact ? filtered.slice(0, 8) : filtered),
+    [compact, filtered]
+  );
+  const customCount = useMemo(
+    () => skills.filter((s) => s.source === 'custom').length,
+    [skills]
+  );
+  const bundledCount = useMemo(
+    () => skills.filter((s) => s.source === 'bundled').length,
+    [skills]
+  );
 
   return (
     <div className="neu-card rounded-2xl p-4 md:p-5 hover:border-orange-500/30">

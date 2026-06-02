@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getConnection } from '@/lib/connection';
+import { requireUser } from '@/lib/auth';
 
-const HERMES_HOME = process.env.HERMES_HOME || path.join(process.env.HOME || '/home/ox', '.hermes');
+export const dynamic = 'force-dynamic';
+
+async function resolveHermesHome(): Promise<string> {
+  const conn = await getConnection();
+  return conn?.homePath || process.env.HERMES_HOME || path.join(process.env.HOME || '/home/ox', '.hermes');
+}
 
 interface CronJob {
   id: string;
@@ -50,7 +57,11 @@ function parseNextRun(schedule: string): string | null {
 }
 
 export async function GET() {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   try {
+    const HERMES_HOME = await resolveHermesHome();
     const jobsPath = path.join(HERMES_HOME, 'cron', 'jobs.json');
     
     let jobs: CronJob[] = [];

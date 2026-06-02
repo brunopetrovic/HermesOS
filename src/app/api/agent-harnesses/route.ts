@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { HARNESS_PRESETS } from '@/lib/agent-harnesses';
 import { sanitizeHarnessForClient } from '@/lib/public-agent-config';
 
+export const dynamic = 'force-static';
+
 /**
  * Paperclip-inspired harness catalog.
  *

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Agent, CouncilMessage } from '@/types';
+import type { Agent, CouncilMessage } from '@/types';
 
 export interface CouncilState {
   agents: Agent[];
@@ -11,7 +11,12 @@ export interface CouncilState {
   clearMessages: () => void;
 }
 
-let messageIdCounter = 0;
+function newId(prefix: string): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 export const useCouncilStore = create<CouncilState>((set) => ({
   agents: [],
@@ -23,7 +28,7 @@ export const useCouncilStore = create<CouncilState>((set) => ({
         ...state.messages,
         {
           ...message,
-          id: `council-msg-${++messageIdCounter}`,
+          id: newId('council-msg'),
           timestamp: new Date(),
         },
       ],

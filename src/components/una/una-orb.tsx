@@ -1,14 +1,16 @@
 'use client';
 
-import { useOrbStore, OrbVariant } from '@/lib/store/orb-store';
+import { useOrbStore, type OrbVariant } from '@/lib/store/orb-store';
 import { useInstanceStore } from '@/lib/store/instance-store';
 import { useUnaStore } from '@/lib/store/una-store';
+import { useShallow } from 'zustand/react/shallow';
 import { motion, PanInfo } from 'framer-motion';
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { cn } from '@/lib/utils';
 
 const ORB_SIZE = 56;
+const EDGE_MARGIN = 16;
 
 const orbStyles: Record<OrbVariant, {
   bg: string;
@@ -53,18 +55,49 @@ export function UnaOrb() {
     isDragging,
     hasNotification,
     notificationCount,
+    x,
+    y,
     setDragging,
     setPosition,
     updateVariantForRealm,
     toggleExpanded,
-  } = useOrbStore();
+  } = useOrbStore(
+    useShallow(s => ({
+      variant: s.variant,
+      isDragging: s.isDragging,
+      hasNotification: s.hasNotification,
+      notificationCount: s.notificationCount,
+      x: s.x,
+      y: s.y,
+      setDragging: s.setDragging,
+      setPosition: s.setPosition,
+      updateVariantForRealm: s.updateVariantForRealm,
+      toggleExpanded: s.toggleExpanded,
+    }))
+  );
 
-  const { currentInstance } = useInstanceStore();
-  const { isThinking } = useUnaStore();
-
+  const currentInstance = useInstanceStore(s => s.currentInstance);
+  const isThinking = useUnaStore(s => s.isThinking);
   const constraintRef = useRef<HTMLDivElement>(null);
+  const [hydrated, setHydrated] = useState(false);
 
-  // Update orb variant when realm changes
+  useEffect(() => {
+    const stored = useOrbStore.persist.getOptions();
+    if (stored.skipHydration) {
+      useOrbStore.persist.rehydrate();
+    }
+    Promise.resolve().then(() => setHydrated(true));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedX = useOrbStore.getState().x;
+    const storedY = useOrbStore.getState().y;
+    if (storedX === 0 && storedY === 0) {
+      setPosition(window.innerWidth - ORB_SIZE - EDGE_MARGIN, window.innerHeight - 100);
+    }
+  }, [setPosition]);
+
   useEffect(() => {
     updateVariantForRealm(currentInstance);
   }, [currentInstance, updateVariantForRealm]);
@@ -75,18 +108,18 @@ export function UnaOrb() {
     setDragging(true);
   }, [setDragging]);
 
-  const handleDragEnd = useCallback((_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    setDragging(false);
-    // Snap to nearest edge
-    const windowW = window.innerWidth;
-    const windowH = window.innerHeight;
-    const currentX = info.point.x;
-    const currentY = Math.min(Math.max(info.point.y, 80), windowH - 80);
-    
-    // Snap to right or left edge
-    const snapX = currentX > windowW / 2 ? windowW - ORB_SIZE - 16 : 16;
-    setPosition(snapX, currentY);
-  }, [setDragging, setPosition]);
+  const handleDragEnd = useCallback(
+    (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+      setDragging(false);
+      const windowW = window.innerWidth;
+      const windowH = window.innerHeight;
+      const currentX = info.point.x;
+      const currentY = Math.min(Math.max(info.point.y, 80), windowH - 80);
+      const snapX = currentX > windowW / 2 ? windowW - ORB_SIZE - EDGE_MARGIN : EDGE_MARGIN;
+      setPosition(snapX, currentY);
+    },
+    [setDragging, setPosition]
+  );
 
   const handleClick = useCallback(() => {
     if (!isDragging) {
@@ -94,12 +127,12 @@ export function UnaOrb() {
     }
   }, [isDragging, toggleExpanded]);
 
+  if (!hydrated) return null;
+
   return (
     <>
-      {/* Constraint area */}
-      <div ref={constraintRef} className="fixed inset-0 pointer-events-none z-[100]" />
-      
-      {/* The Orb */}
+      <div ref={constraintRef} className="fixed inset-0 pointer-events-none z-[100]" aria-hidden="true" />
+
       <motion.button
         drag
         dragConstraints={constraintRef}
@@ -121,13 +154,14 @@ export function UnaOrb() {
         style={{
           width: ORB_SIZE,
           height: ORB_SIZE,
-          right: 16,
-          bottom: 100,
+          left: x || undefined,
+          top: y || undefined,
+          right: x === 0 ? EDGE_MARGIN : undefined,
+          bottom: !y ? 100 : undefined,
         }}
         id="una-orb"
         aria-label="Open Una chat"
       >
-        {/* Inner glow ring */}
         <div
           className="absolute inset-1 rounded-full"
           style={{
@@ -135,7 +169,6 @@ export function UnaOrb() {
           }}
         />
 
-        {/* Spinning ring when thinking */}
         {isThinking && (
           <motion.div
             className="absolute inset-[-3px] rounded-full border-2 border-transparent"
@@ -148,7 +181,6 @@ export function UnaOrb() {
           />
         )}
 
-        {/* Icon */}
         <Icon
           icon={isThinking ? 'solar:refresh-linear' : style.icon}
           className={cn(
@@ -159,7 +191,6 @@ export function UnaOrb() {
           width={24}
         />
 
-        {/* Notification badge */}
         {hasNotification && (
           <motion.div
             initial={{ scale: 0 }}
@@ -172,7 +203,6 @@ export function UnaOrb() {
           </motion.div>
         )}
 
-        {/* Drag trail particles (subtle) */}
         {isDragging && (
           <>
             <motion.div

@@ -2,186 +2,84 @@
 
 import { Icon } from '@iconify/react';
 import { useEffect, useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-
-type AgentType = 'hermes' | 'openclaw' | 'openai' | 'http' | 'process' | 'custom';
-type HarnessConnectionMode = 'local-cli' | 'gateway' | 'webhook' | 'command';
-
-type MaskedConnection = {
-  agentType: AgentType;
-  adapterType: string;
-  connectionMode: HarnessConnectionMode;
-  label: string;
-  gatewayUrl: string;
-  homePath?: string;
-  connectedAt?: string;
-  capabilities?: string[];
-  adapterConfig?: Record<string, unknown>;
-  hasApiKey?: boolean;
-  apiKeyPreview?: string | null;
-};
-
-type HarnessConfigField = {
-  key: string;
-  label: string;
-  type: 'text' | 'url' | 'secret' | 'path' | 'textarea' | 'number';
-  required?: boolean;
-  placeholder?: string;
-  helper?: string;
-};
-
-type HarnessPreset = {
-  agentType: AgentType;
-  adapterType: string;
-  label: string;
-  shortLabel: string;
-  gatewayUrl: string;
-  description: string;
-  icon: string;
-  connectionMode: HarnessConnectionMode;
-  paperclipPattern: string;
-  capabilities: string[];
-  healthEndpoints: string[];
-  configFields: HarnessConfigField[];
-  safetyNotes: string[];
-};
-
-type Discovery = {
-  defaultGatewayUrl: string;
-  detectedHomes: { agentType: AgentType; path: string; exists: boolean; source: string }[];
-  presets: HarnessPreset[];
-};
-
-type ConnectionResponse = {
-  connected: boolean;
-  connection: MaskedConnection | null;
-  discovery?: Discovery;
-};
-
-type TestResult = {
-  ok: boolean;
-  status: number | null;
-  detail: string;
-  checkedEndpoint?: string;
-};
-
-const EMPTY_FORM = {
-  agentType: 'hermes' as AgentType,
-  label: 'Hermes Agent',
-  gatewayUrl: 'http://localhost:8642',
-  apiKey: '',
-  homePath: '',
-  adapterConfigJson: '{}',
-};
-
-const AGENT_COPY: Record<AgentType, { title: string; helper: string; icon: string }> = {
-  hermes: {
-    title: 'Hermes Agent',
-    helper: 'Local Hermes adapter: gateway + optional home-path sync for memory, skills, crons, sessions, and status.',
-    icon: 'solar:bolt-circle-linear',
-  },
-  openclaw: {
-    title: 'OpenClaw Gateway',
-    helper: 'Gateway adapter for OpenClaw / Claw-compatible agents that wake through an HTTP control plane.',
-    icon: 'solar:widget-5-linear',
-  },
-  openai: {
-    title: 'OpenAI-compatible gateway',
-    helper: 'For Ollama, LM Studio, vLLM, LocalAI, or any model gateway exposing /v1 endpoints.',
-    icon: 'solar:cloud-linear',
-  },
-  http: {
-    title: 'HTTP Webhook Agent',
-    helper: 'Generic webhook/API adapter for agents with a wake endpoint.',
-    icon: 'solar:link-circle-linear',
-  },
-  process: {
-    title: 'Local Process Agent',
-    helper: 'Command/script harness. Saved as config only; setup never auto-runs arbitrary commands.',
-    icon: 'solar:terminal-linear',
-  },
-  custom: {
-    title: 'Custom Agent Gateway',
-    helper: 'Fallback for custom local or private-network agent control APIs.',
-    icon: 'solar:code-circle-linear',
-  },
-};
-
-function defaultAdapterConfig(agentType: AgentType, preset?: HarnessPreset | null) {
-  if (agentType === 'process') return { command: '', args: '', cwd: '', timeoutSec: 300 };
-  if (agentType === 'http') return { method: 'POST', payloadTemplate: { source: 'unox', action: 'heartbeat' } };
-  if (agentType === 'hermes') return { command: 'hermes', profile: 'default' };
-  if (agentType === 'openai') return { model: '' };
-  return preset?.adapterType ? { adapterType: preset.adapterType } : {};
-}
-
-function prettyJson(value: unknown) {
-  return JSON.stringify(value, null, 2);
-}
+import type { AgentType } from '@/lib/agent-harnesses';
+import { defaultAdapterConfig, prettyJson } from './onboarding/copy';
+import { ConfigureStep } from './onboarding/configure-step';
+import { SyncStep } from './onboarding/sync-step';
+import { TestStep } from './onboarding/test-step';
+import { WelcomeStep } from './onboarding/welcome-step';
+import { useConnection, useInvalidateConnection } from '@/lib/hooks/use-connection';
+import {
+  type Discovery,
+  type MaskedConnection,
+  EMPTY_FORM,
+  type OnboardingForm,
+  type TestResult,
+} from './onboarding/types';
 
 export function AgentOnboarding() {
-  const [loading, setLoading] = useState(true);
+  const { data, refetch } = useConnection();
+  const invalidate = useInvalidateConnection();
   const [open, setOpen] = useState(false);
-  const [connected, setConnected] = useState(false);
-  const [connection, setConnection] = useState<MaskedConnection | null>(null);
-  const [discovery, setDiscovery] = useState<Discovery | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState<OnboardingForm>(EMPTY_FORM);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [wizardStep, setWizardStep] = useState(1);
 
-  async function refreshConnection(options: { forceOpen?: boolean } = {}) {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/connection', { cache: 'no-store' });
-      const data = (await res.json()) as ConnectionResponse;
-      setConnected(data.connected);
-      setConnection(data.connection);
-      setDiscovery(data.discovery || null);
+  const connected = data?.connected ?? false;
+  const connection = data?.connection as MaskedConnection | null;
+  const discovery = data?.discovery as Discovery | null;
 
-      const detectedHermes = data.discovery?.detectedHomes.find(
-        item => item.agentType === 'hermes' && item.exists
-      );
-      const firstPreset = data.discovery?.presets[0];
-
-      if (data.connection) {
-        setForm({
-          agentType: data.connection.agentType,
-          label: data.connection.label,
-          gatewayUrl: data.connection.gatewayUrl,
-          apiKey: '',
-          homePath: data.connection.homePath || '',
-          adapterConfigJson: prettyJson(data.connection.adapterConfig || defaultAdapterConfig(data.connection.agentType)),
-        });
-      } else {
-        setForm({
-          ...EMPTY_FORM,
-          gatewayUrl: firstPreset?.gatewayUrl || data.discovery?.defaultGatewayUrl || EMPTY_FORM.gatewayUrl,
-          homePath: detectedHermes?.path || '',
-        });
-      }
-
-      if (options.forceOpen || !data.connected) setOpen(true);
-    } catch {
+  function hydrateFromConnection(payload: typeof data, options: { forceOpen?: boolean } = {}) {
+    if (!payload) {
       setError('Could not load connection settings.');
       if (options.forceOpen) setOpen(true);
-    } finally {
-      setLoading(false);
+      return;
+    }
+    setError(null);
+    const detectedHermes = payload.discovery?.detectedHomes.find(
+      item => item.agentType === 'hermes' && item.exists
+    );
+    const firstPreset = payload.discovery?.presets[0];
+
+    if (payload.connection) {
+      setForm({
+        agentType: payload.connection.agentType as AgentType,
+        label: payload.connection.label,
+        gatewayUrl: payload.connection.gatewayUrl,
+        apiKey: '',
+        homePath: payload.connection.homePath || '',
+        adapterConfigJson: prettyJson(payload.connection.adapterConfig || defaultAdapterConfig(payload.connection.agentType as AgentType)),
+      });
+    } else {
+      setForm({
+        ...EMPTY_FORM,
+        gatewayUrl: firstPreset?.gatewayUrl || payload.discovery?.defaultGatewayUrl || EMPTY_FORM.gatewayUrl,
+        homePath: detectedHermes?.path || '',
+      });
+    }
+
+    if (options.forceOpen || !payload.connected) {
+      setOpen(true);
+      setWizardStep(payload.connected ? 4 : 1);
     }
   }
 
   useEffect(() => {
-    refreshConnection();
+    void refetch().then(({ data: next }) => hydrateFromConnection(next));
 
-    const openHandler = () => refreshConnection({ forceOpen: true });
+    const openHandler = () => {
+      void refetch().then(({ data: next }) => hydrateFromConnection(next, { forceOpen: true }));
+    };
     window.addEventListener('open-agent-onboarding', openHandler);
     return () => window.removeEventListener('open-agent-onboarding', openHandler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const selectedCopy = AGENT_COPY[form.agentType];
   const selectedPreset = useMemo(
     () => discovery?.presets.find(item => item.agentType === form.agentType) || null,
     [discovery, form.agentType]
@@ -197,13 +95,23 @@ export function AgentOnboarding() {
     setForm(current => ({
       ...current,
       agentType,
-      label: preset?.label || AGENT_COPY[agentType].title,
+      label: preset?.label || current.label,
       gatewayUrl: preset?.gatewayUrl || current.gatewayUrl,
-      homePath: home?.path || current.homePath,
+      homePath: home?.path || current.homePath || '',
       adapterConfigJson: prettyJson(defaultAdapterConfig(agentType, preset)),
     }));
     setTestResult(null);
     setError(null);
+    setWizardStep(2);
+  }
+
+  function autofillFromEnv() {
+    if (!selectedPreset) return;
+    setForm(current => ({
+      ...current,
+      gatewayUrl: selectedPreset.gatewayUrl || current.gatewayUrl,
+      homePath: detectedHome?.path || current.homePath || '',
+    }));
   }
 
   async function testConnection() {
@@ -231,7 +139,11 @@ export function AgentOnboarding() {
       });
       const data = (await res.json()) as TestResult;
       setTestResult(data);
-      if (!res.ok || !data.ok) setError(data.detail || 'Gateway test failed.');
+      if (res.ok && data.ok) {
+        setTimeout(() => setWizardStep(4), 1000);
+      } else {
+        setError(data.detail || 'Gateway test failed.');
+      }
     } catch {
       setError('Gateway test failed before receiving a response.');
     } finally {
@@ -239,7 +151,7 @@ export function AgentOnboarding() {
     }
   }
 
-  async function saveConnection() {
+  async function saveAndConnect() {
     setSaving(true);
     setError(null);
     try {
@@ -265,10 +177,9 @@ export function AgentOnboarding() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Could not save connection.');
-      setConnected(true);
-      setConnection(data.connection);
       setOpen(false);
-      window.dispatchEvent(new Event('agent-connection-updated'));
+      invalidate();
+      void refetch().then(({ data: next }) => hydrateFromConnection(next));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save connection.');
     } finally {
@@ -281,10 +192,10 @@ export function AgentOnboarding() {
     setError(null);
     try {
       await fetch('/api/connection', { method: 'DELETE' });
-      setConnected(false);
-      setConnection(null);
-      setOpen(true);
-      window.dispatchEvent(new Event('agent-connection-updated'));
+      setForm(EMPTY_FORM);
+      setWizardStep(1);
+      invalidate();
+      void refetch().then(({ data: next }) => hydrateFromConnection(next));
     } catch {
       setError('Could not disconnect agent.');
     } finally {
@@ -292,247 +203,121 @@ export function AgentOnboarding() {
     }
   }
 
+  function close() {
+    setOpen(false);
+  }
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 p-0 backdrop-blur-md sm:items-center sm:p-4">
-      <div className="max-h-[94dvh] w-full max-w-5xl overflow-y-auto rounded-t-3xl border border-[#333a47]/70 bg-[#11141a] shadow-2xl sm:rounded-3xl">
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#333a47]/40 bg-[#11141a]/95 p-4 backdrop-blur md:p-6">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-orange-300">
-                Local agent setup
-              </span>
-              {connected && connection ? (
-                <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-                  Connected: {connection.label}
-                </span>
-              ) : null}
-            </div>
-            <h2 className="text-2xl font-black tracking-tight text-white md:text-4xl">
-              Connect UNOX to your local agent
-            </h2>
-            <p className="max-w-3xl text-sm leading-relaxed text-slate-400 md:text-base">
-              UNOX stays clean by default: no bundled personal paths, no hidden cloud dependency, no exposed secrets. Pick an agent, test its gateway, then sync local status, memory, skills, crons, sessions, and future tools through one saved connection.
-            </p>
-          </div>
-          <button
-            onClick={() => setOpen(false)}
-            className="rounded-xl border border-[#333a47]/60 bg-[#1a1d24] p-2 text-slate-400 transition hover:text-white"
-            aria-label="Close agent setup"
-          >
-            <Icon icon="solar:close-circle-linear" width={22} />
-          </button>
-        </div>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="agent-onboarding-title"
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/80 p-0 backdrop-blur-lg sm:items-center sm:p-4"
+    >
+      <div className="max-h-[96dvh] w-full max-w-4xl overflow-y-auto rounded-t-[2.5rem] border border-[#2b3544]/60 bg-[#0c0e14] shadow-2xl transition-all duration-300 sm:rounded-[2rem] md:max-h-[90dvh]">
 
-        <div className="grid gap-5 p-4 md:grid-cols-[0.85fr_1.15fr] md:p-6">
-          <section className="space-y-3">
-            <h3 className="px-1 text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Agent preset</h3>
-            {(discovery?.presets || []).map(preset => {
-              const agentType = preset.agentType;
-              const copy = AGENT_COPY[agentType];
-              const isSelected = form.agentType === agentType;
+        <div className="sticky top-0 z-10 border-b border-[#202733]/50 bg-[#0c0e14]/95 p-5 backdrop-blur-md md:p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-orange-500/10 border border-orange-500/20 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-orange-400">
+                  Agent Connection Wizard
+                </span>
+                {connected && connection && (
+                  <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Connected
+                  </span>
+                )}
+              </div>
+              <h2 id="agent-onboarding-title" className="mt-2 text-xl font-black text-white md:text-3xl">
+                Onboard Local Agent
+              </h2>
+            </div>
+            <button
+              onClick={close}
+              aria-label="Close onboarding dialog"
+              className="rounded-full bg-slate-900 border border-slate-800 p-2 text-slate-400 hover:text-white transition"
+            >
+              <Icon icon="solar:close-circle-linear" width={20} aria-hidden="true" />
+            </button>
+          </div>
+
+          <ol className="mt-6 flex items-center justify-between gap-2 px-1" aria-label="Onboarding progress">
+            {[1, 2, 3, 4].map(step => {
+              const label = step === 1 ? 'Select' : step === 2 ? 'Configure' : step === 3 ? 'Test' : 'Sync';
               return (
-                <button
-                  key={agentType}
-                  onClick={() => applyPreset(agentType)}
-                  className={cn(
-                    'w-full rounded-2xl border p-4 text-left transition',
-                    isSelected
-                      ? 'border-orange-500/50 bg-orange-500/10 shadow-[0_0_24px_rgba(249,115,22,0.08)]'
-                      : 'border-[#333a47]/40 bg-[#0d1015] hover:border-[#333a47]/80'
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={cn('rounded-xl p-2', isSelected ? 'bg-orange-500/15 text-orange-300' : 'bg-[#1a1d24] text-slate-400')}>
-                      <Icon icon={copy.icon} width={22} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-slate-100">{preset.label}</p>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-500">{preset.description}</p>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-slate-400">
-                          {preset.adapterType}
-                        </span>
-                        <span className="rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-orange-200">
-                          {preset.connectionMode}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </button>
+                <li key={step} className="flex-1" aria-current={wizardStep === step ? 'step' : undefined}>
+                  <div
+                    className={cn(
+                      'h-1 rounded-full transition-all duration-300',
+                      wizardStep >= step ? 'bg-orange-500' : 'bg-[#181d28]'
+                    )}
+                  />
+                  <span className={cn(
+                    'mt-1.5 block text-[10px] font-bold uppercase tracking-widest transition-colors',
+                    wizardStep === step ? 'text-orange-400' : 'text-slate-600'
+                  )}>
+                    {label}
+                  </span>
+                </li>
               );
             })}
+          </ol>
+        </div>
 
-            <div className="rounded-2xl border border-[#333a47]/35 bg-[#0d1015] p-4">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                <Icon icon="solar:radar-2-linear" width={15} />
-                Auto-detection
-              </div>
-              <div className="mt-3 space-y-2 text-xs text-slate-400">
-                {loading ? <p>Scanning local defaults…</p> : null}
-                {discovery?.detectedHomes.filter(item => item.exists).length ? (
-                  discovery.detectedHomes.filter(item => item.exists).map(item => (
-                    <button
-                      key={`${item.agentType}-${item.path}`}
-                      onClick={() => setForm(current => ({ ...current, agentType: item.agentType, homePath: item.path }))}
-                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-left text-emerald-200"
-                    >
-                      <span className="truncate">{item.path}</span>
-                      <span className="shrink-0 text-[10px] uppercase tracking-widest">{item.agentType}</span>
-                    </button>
-                  ))
-                ) : !loading ? (
-                  <p>No local agent home detected yet. That’s fine — gateway-only mode still works.</p>
-                ) : null}
-              </div>
-            </div>
-          </section>
+        <div className="p-5 md:p-8">
+          <AnimatePresence mode="wait">
+            {wizardStep === 1 && (
+              <WelcomeStep
+                key="welcome"
+                discovery={discovery}
+                form={form}
+                onSelect={applyPreset}
+              />
+            )}
+            {wizardStep === 2 && (
+              <ConfigureStep
+                key="configure"
+                form={form}
+                selectedPreset={selectedPreset}
+                onChange={setForm}
+                onAutofill={autofillFromEnv}
+                onBack={() => setWizardStep(1)}
+                onNext={() => setWizardStep(3)}
+              />
+            )}
+            {wizardStep === 3 && (
+              <TestStep
+                key="test"
+                form={form}
+                testing={testing}
+                testResult={testResult}
+                error={error}
+                onBack={() => setWizardStep(2)}
+                onTest={testConnection}
+                onNext={() => setWizardStep(4)}
+              />
+            )}
+            {wizardStep === 4 && (
+              <SyncStep
+                key="sync"
+                form={form}
+                connected={connected}
+                saving={saving}
+                error={error}
+                onSave={saveAndConnect}
+                onDisconnect={disconnect}
+                onAdjust={() => setWizardStep(2)}
+              />
+            )}
+          </AnimatePresence>
+        </div>
 
-          <section className="space-y-4 rounded-2xl border border-[#333a47]/40 bg-[#0d1015] p-4 md:p-5">
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-orange-500/10 p-2 text-orange-300">
-                <Icon icon={selectedCopy.icon} width={24} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white">{selectedCopy.title}</h3>
-                <p className="text-xs text-slate-500">Configuration is saved locally on this machine.</p>
-              </div>
-            </div>
-
-            {selectedPreset ? (
-              <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-4 text-xs text-slate-300">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-slate-700 bg-slate-950/70 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-slate-400">
-                    {selectedPreset.adapterType}
-                  </span>
-                  <span className="rounded-full border border-orange-500/25 bg-orange-500/10 px-2 py-1 text-[10px] uppercase tracking-wider text-orange-200">
-                    {selectedPreset.connectionMode}
-                  </span>
-                </div>
-                <p className="leading-relaxed text-slate-400">{selectedPreset.paperclipPattern}</p>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {selectedPreset.capabilities.map(capability => (
-                    <span key={capability} className="rounded-full border border-[#333a47] bg-[#11141a] px-2 py-1 text-[10px] uppercase tracking-wider text-slate-400">
-                      {capability}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1.5 sm:col-span-1">
-                <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Display label</span>
-                <input
-                  value={form.label}
-                  onChange={e => setForm(current => ({ ...current, label: e.target.value }))}
-                  className="h-11 w-full rounded-xl border border-[#333a47]/60 bg-[#11141a] px-3 text-sm text-slate-100 outline-none transition focus:border-orange-500/60"
-                  placeholder="My local agent"
-                />
-              </label>
-              <label className="space-y-1.5 sm:col-span-1">
-                <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Gateway URL</span>
-                <input
-                  value={form.gatewayUrl}
-                  onChange={e => {
-                    setForm(current => ({ ...current, gatewayUrl: e.target.value }));
-                    setTestResult(null);
-                  }}
-                  className="h-11 w-full rounded-xl border border-[#333a47]/60 bg-[#11141a] px-3 font-mono text-sm text-slate-100 outline-none transition focus:border-orange-500/60"
-                  placeholder="http://localhost:8642"
-                />
-              </label>
-              <label className="space-y-1.5 sm:col-span-1">
-                <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">API key / bearer token</span>
-                <input
-                  value={form.apiKey}
-                  onChange={e => setForm(current => ({ ...current, apiKey: e.target.value }))}
-                  className="h-11 w-full rounded-xl border border-[#333a47]/60 bg-[#11141a] px-3 font-mono text-sm text-slate-100 outline-none transition focus:border-orange-500/60"
-                  placeholder={connection?.hasApiKey ? connection.apiKeyPreview || 'Saved token present' : 'Optional'}
-                  type="password"
-                />
-              </label>
-              <label className="space-y-1.5 sm:col-span-1">
-                <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Local agent home path</span>
-                <input
-                  value={form.homePath}
-                  onChange={e => setForm(current => ({ ...current, homePath: e.target.value }))}
-                  className="h-11 w-full rounded-xl border border-[#333a47]/60 bg-[#11141a] px-3 font-mono text-sm text-slate-100 outline-none transition focus:border-orange-500/60"
-                  placeholder="~/.hermes or ~/.openclaw-workspace"
-                />
-              </label>
-              <label className="space-y-1.5 sm:col-span-2">
-                <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Adapter config JSON</span>
-                <textarea
-                  value={form.adapterConfigJson}
-                  onChange={e => setForm(current => ({ ...current, adapterConfigJson: e.target.value }))}
-                  className="min-h-28 w-full rounded-xl border border-[#333a47]/60 bg-[#11141a] px-3 py-3 font-mono text-xs text-slate-100 outline-none transition focus:border-orange-500/60"
-                  spellCheck={false}
-                />
-                <span className="text-[11px] leading-relaxed text-slate-500">
-                  Paperclip-style adapter config: command/profile for Hermes, webhook payloads for HTTP agents, or process command metadata. UNOX stores it; execution remains explicit.
-                </span>
-              </label>
-            </div>
-
-            {detectedHome ? (
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-                Detected {form.agentType} home: <span className="font-mono">{detectedHome.path}</span>
-              </div>
-            ) : null}
-
-            {testResult ? (
-              <div className={cn(
-                'rounded-xl border px-3 py-2 text-xs',
-                testResult.ok ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200' : 'border-red-500/25 bg-red-500/10 text-red-200'
-              )}>
-                <span className="font-bold">{testResult.ok ? 'Gateway reachable' : 'Gateway not ready'}:</span>{' '}
-                {testResult.detail}
-                {testResult.checkedEndpoint ? <span className="ml-1 font-mono text-[11px] opacity-80">({testResult.checkedEndpoint})</span> : null}
-              </div>
-            ) : null}
-
-            {error ? (
-              <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-                {error}
-              </div>
-            ) : null}
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Button onClick={testConnection} loading={testing} variant="secondary" className="w-full">
-                Test gateway
-              </Button>
-              <Button onClick={saveConnection} loading={saving} className="w-full sm:col-span-2" disabled={!form.gatewayUrl || !form.label}>
-                Save & sync agent
-              </Button>
-            </div>
-
-            {connected ? (
-              <button
-                onClick={disconnect}
-                disabled={saving}
-                className="w-full rounded-xl border border-red-500/25 px-4 py-3 text-sm font-semibold text-red-300 transition hover:bg-red-500/10 disabled:opacity-50"
-              >
-                Disconnect saved agent
-              </button>
-            ) : null}
-
-            <div className="grid gap-3 rounded-2xl border border-[#333a47]/35 bg-[#11141a] p-4 text-xs leading-relaxed text-slate-400 md:grid-cols-3">
-              <div>
-                <p className="mb-1 font-bold text-slate-200">1. Keep it local</p>
-                <p>Default to localhost. If you expose the gateway, put auth and a private network in front of it.</p>
-              </div>
-              <div>
-                <p className="mb-1 font-bold text-slate-200">2. Sync data safely</p>
-                <p>Home path unlocks memory, sessions, skills, crons, and file-backed status. Gateway-only still enables chat/control surfaces.</p>
-              </div>
-              <div>
-                <p className="mb-1 font-bold text-slate-200">3. Desktop-ready later</p>
-                <p>This flow maps cleanly to a future Linux, Windows, and macOS shell without user-specific defaults.</p>
-              </div>
-            </div>
-          </section>
+        <div className="border-t border-[#202733]/40 bg-slate-950/20 p-5 text-center text-[10px] text-slate-500">
+          Settings are stored locally inside <code className="font-mono text-slate-400">~/.unox/connection.json</code>. No data is sent to external servers.
         </div>
       </div>
     </div>

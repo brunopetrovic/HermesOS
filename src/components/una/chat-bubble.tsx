@@ -2,7 +2,6 @@
 
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/utils';
-import { motion } from 'framer-motion';
 import { Icon } from '@iconify/react';
 import type { UnaMessage as UnaMessageType } from '@/lib/store/una-store';
 
@@ -26,12 +25,9 @@ export function ChatBubble({ message, showAvatar = true }: ChatBubbleProps) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
+    <div
       className={cn(
-        'flex gap-2 my-3',
+        'flex gap-2 my-3 animate-fade-in',
         isUser ? 'flex-row-reverse' : 'flex-row'
       )}
     >
@@ -85,6 +81,6 @@ export function ChatBubble({ message, showAvatar = true }: ChatBubbleProps) {
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }

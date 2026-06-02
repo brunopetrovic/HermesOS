@@ -2,12 +2,22 @@
 
 import { Icon } from '@iconify/react';
 import { useHermesStore } from '@/lib/store/hermes-store';
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect } from 'react';
 
 export default function BrainMemoriesPage() {
-  const { memoryL1, memoryL1Usage, memoryL2, memoryL3, memoryLoading, fetchMemory } = useHermesStore();
+  const { memoryL1, memoryL1Usage, memoryL2, memoryL3, memoryLoading, fetchMemory } = useHermesStore(
+    useShallow(s => ({
+      memoryL1: s.memoryL1,
+      memoryL1Usage: s.memoryL1Usage,
+      memoryL2: s.memoryL2,
+      memoryL3: s.memoryL3,
+      memoryLoading: s.memoryLoading,
+      fetchMemory: s.fetchMemory,
+    }))
+  );
 
-  useEffect(() => { fetchMemory(); }, [fetchMemory]);
+  useEffect(() => { fetchMemory(); }, []);
 
   return (
     <>

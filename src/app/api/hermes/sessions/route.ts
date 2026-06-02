@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getConnection } from '@/lib/connection';
+import { requireUser } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 // We can't use better-sqlite3 without native dependencies, so this endpoint
 // returns safe session-store metadata for now. A later SQLite bridge can add
 // real paginated session search without changing the client contract.
 export async function GET(req: NextRequest) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
   const searchParams = req.nextUrl.searchParams;
   const query = {
     limit: parseInt(searchParams.get('limit') || '20'),

@@ -3,19 +3,26 @@
 import { useEffect, useRef } from 'react';
 import { Howl, Howler } from 'howler';
 import { useInstanceStore } from '@/lib/store/instance-store';
-import { InstanceType } from '@/types';
+import { useShallow } from 'zustand/react/shallow';
+import type { InstanceType } from '@/types';
 
 // Placeholder URLs for the ambient soundscapes.
 // In a real deployment, these would be high-quality files in public/audio/
 const SOUNDSCAPES: Record<InstanceType, string> = {
-  personal: '/audio/ambient-personal.mp3', // Warm lo-fi, crackling fire
-  brand: '/audio/ambient-brand.mp3',       // Energetic, subtle beats
-  business: '/audio/ambient-business.mp3', // White noise, focus tones
-  nexus: '/audio/ambient-nexus.mp3',       // Deep space, cosmic hum
+  personal: '/audio/ambient-personal.mp3',
+  brand: '/audio/ambient-brand.mp3',
+  business: '/audio/ambient-business.mp3',
+  nexus: '/audio/ambient-nexus.mp3',
 };
 
 export function SoundscapeController() {
-  const { currentInstance, ambientSoundEnabled, ambientSoundVolume } = useInstanceStore();
+  const { currentInstance, ambientSoundEnabled, ambientSoundVolume } = useInstanceStore(
+    useShallow(s => ({
+      currentInstance: s.currentInstance,
+      ambientSoundEnabled: s.ambientSoundEnabled,
+      ambientSoundVolume: s.ambientSoundVolume,
+    }))
+  );
   
   // Keep track of loaded Howl instances
   const soundsRef = useRef<Partial<Record<InstanceType, Howl>>>({});

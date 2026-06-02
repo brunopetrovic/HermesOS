@@ -47,12 +47,15 @@ export interface SubTask {
 // ==========================================
 // GOAL
 // ==========================================
+export type GoalLifecycleStatus = 'active' | 'paused' | 'completed' | 'abandoned';
+
 export interface Goal {
   id: string;
   title: string;
   description?: string;
   instance: InstanceType;
   progress: number; // 0-100
+  status?: GoalLifecycleStatus;
   deadline?: Date;
   milestones?: Milestone[];
   linkedTasks?: string[]; // Task IDs
@@ -64,7 +67,9 @@ export interface Milestone {
   id: string;
   title: string;
   completed: boolean;
+  done?: boolean;
   dueDate?: Date;
+  order?: number;
 }
 
 // ==========================================

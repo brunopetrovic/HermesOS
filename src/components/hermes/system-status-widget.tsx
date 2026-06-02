@@ -1,26 +1,48 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
 import { useHermesStore } from '@/lib/store/hermes-store';
 import { Icon } from '@iconify/react';
-import { useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { openAgentOnboarding } from '@/components/connection/agent-onboarding';
 
-export function SystemStatusWidget() {
-  const systemStatus = useHermesStore(s => s.systemStatus);
-  const gateway = useHermesStore(s => s.gateway);
-  const platforms = useHermesStore(s => s.platforms);
-  const activeModel = useHermesStore(s => s.activeModel);
-  const fetchStatus = useHermesStore(s => s.fetchStatus);
+async function fetchHermesStatus() {
+  const res = await fetch('/api/hermes/status');
+  if (!res.ok) throw new Error(`Hermes status failed (HTTP ${res.status})`);
+  return res.json() as Promise<{
+    status: 'online' | 'degraded' | 'offline' | 'loading' | 'error' | 'not_connected';
+    gateway: { pid: number | null; processAlive: boolean; httpHealthy: boolean; updatedAt: string | null; exitReason: string | null };
+    platforms: Record<string, { state: string; error?: string; updatedAt?: string }>;
+    model: string;
+  }>;
+}
 
-  useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 30000);
-    return () => clearInterval(interval);
-  }, [fetchStatus]);
+export function SystemStatusWidget() {
+  const setStatus = useHermesStore(s => s.setStatus);
+
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: ['hermes', 'status'],
+    queryFn: async () => {
+      const next = await fetchHermesStatus();
+      setStatus(
+        next.status,
+        next.gateway ? { ...next.gateway, state: next.status } : null,
+        next.platforms,
+        next.model
+      );
+      return next;
+    },
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const systemStatus = data?.status ?? useHermesStore.getState().systemStatus;
+  const gateway = data?.gateway ?? useHermesStore.getState().gateway;
+  const platforms = data?.platforms ?? useHermesStore.getState().platforms;
+  const activeModel = data?.model ?? useHermesStore.getState().activeModel;
 
   const isOnline = systemStatus === 'online';
-  const isLoading = systemStatus === 'loading';
+  const isLoading = systemStatus === 'loading' || (isFetching && !data);
   const isNotConnected = systemStatus === 'not_connected';
   const isDegraded = systemStatus === 'degraded';
 
@@ -89,11 +111,11 @@ export function SystemStatusWidget() {
           </button>
 
           <button
-            onClick={fetchStatus}
+            onClick={() => refetch()}
             className="w-7 h-7 rounded-lg bg-[#1a1d24] border border-[#333a47]/30 flex items-center justify-center text-slate-500 hover:text-orange-400 transition-colors"
             aria-label="Refresh gateway status"
           >
-            <Icon icon="solar:refresh-linear" width={14} className={isLoading ? 'animate-spin' : ''} />
+            <Icon icon="solar:refresh-linear" width={14} className={isFetching ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>

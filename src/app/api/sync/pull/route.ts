@@ -1,48 +1,60 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
-import { SessionUser } from '@/types';
+import { prisma } from '@/lib/db';
+import { requireUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const session = await getServerSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
 
   try {
-    const userId = (session.user as SessionUser).id;
-
-    const tasks = await prisma.task.findMany({
-      where: {
-        instance: {
-          userId,
+    const [tasks, goals, events] = await Promise.all([
+      prisma.task.findMany({
+        where: {
+          instance: { userId: auth.user.id },
         },
-      },
-    });
-
-    const goals = await prisma.goal.findMany({
-      where: {
-        instance: {
-          userId,
+        include: {
+          instance: { select: { key: true } },
         },
-      },
-    });
-
-    const events = await prisma.calendarEvent.findMany({
-      where: {
-        instance: {
-          userId,
+        orderBy: { updatedAt: 'desc' },
+        take: 200,
+      }),
+      prisma.goal.findMany({
+        where: {
+          instance: { userId: auth.user.id },
         },
-      },
-    });
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          progress: true,
+          status: true,
+          deadline: true,
+          updatedAt: true,
+          milestones: {
+            select: { id: true, title: true, done: true, dueDate: true },
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 200,
+      }),
+      prisma.calendarEvent.findMany({
+        where: {
+          instance: { userId: auth.user.id },
+        },
+        orderBy: { startDate: 'asc' },
+        take: 200,
+      }),
+    ]);
 
     return NextResponse.json({
       tasks,
       goals,
       events,
-      last_sync: new Date(),
+      last_sync: new Date().toISOString(),
     });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Sync Pull Error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useInstanceStore } from '@/lib/store/instance-store';
+import { useShallow } from 'zustand/react/shallow';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Icon } from '@iconify/react';
@@ -8,7 +9,14 @@ import Link from 'next/link';
 import { openAgentOnboarding } from '@/components/connection/agent-onboarding';
 
 export default function SettingsPage() {
-  const { animationEnabled, toggleAnimation } = useInstanceStore();
+  const { animationEnabled, toggleAnimation, sidebarCollapsed, setSidebarCollapsed } = useInstanceStore(
+    useShallow(s => ({
+      animationEnabled: s.animationEnabled,
+      toggleAnimation: s.toggleAnimation,
+      sidebarCollapsed: s.sidebarCollapsed,
+      setSidebarCollapsed: s.setSidebarCollapsed,
+    }))
+  );
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 md:space-y-8 pb-20 md:pb-10">
@@ -69,7 +77,7 @@ export default function SettingsPage() {
                   <p className="text-sm md:text-base font-medium text-text-primary">Compact Sidebar</p>
                   <p className="text-xs text-text-secondary">Show only icons in the sidebar by default.</p>
                 </div>
-                <Switch checked={false} />
+                <Switch checked={sidebarCollapsed} onCheckedChange={setSidebarCollapsed} />
               </div>
             </Card>
           </section>

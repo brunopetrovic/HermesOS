@@ -7,6 +7,7 @@ import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { CalendarEvent } from '@/types';
 import { Card } from '@/components/ui/card';
+import { REALM_CALENDAR_COLOR } from '@/lib/realm';
 
 const locales = {
   'en-US': enUS,
@@ -34,13 +35,7 @@ export function CalendarView({ events, onSelectEvent, onSelectSlot }: CalendarVi
   }));
 
   const eventStyleGetter = (event: CalendarEvent) => {
-    let backgroundColor = 'var(--accent)';
-    
-    // Customize colors based on instance if needed
-    if (event.instance === 'personal') backgroundColor = '#c9a84c';
-    if (event.instance === 'brand') backgroundColor = '#f093fb';
-    if (event.instance === 'business') backgroundColor = '#dc2626';
-
+    const backgroundColor = REALM_CALENDAR_COLOR[event.instance] || 'var(--accent)';
     return {
       style: {
         backgroundColor,

@@ -2,7 +2,6 @@
 
 import { cn } from '@/lib/utils';
 import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react';
-import { AnimatePresence } from 'framer-motion';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -92,13 +91,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         </div>
 
         {/* Error message */}
-        <AnimatePresence>
-          {error && (
-            <p className="mt-1.5 text-xs text-danger">
-              {error}
-            </p>
-          )}
-        </AnimatePresence>
+        {error && (
+          <p className="mt-1.5 text-xs text-danger">
+            {error}
+          </p>
+        )}
 
         {/* Hint text */}
         {!error && hint && (

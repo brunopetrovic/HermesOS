@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getConnection } from '@/lib/connection';
+import { requireUser } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 interface MemoryFile {
   name: string;
@@ -39,15 +42,20 @@ async function readMemoryFile(filePath: string, maxSize: number): Promise<Memory
 }
 
 export async function GET() {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const conn = await getConnection();
   const HERMES_HOME = conn?.homePath || path.join(process.env.HOME || '', '.hermes');
 
   try {
     // === L1: Working Memory (MEMORY.md + USER.md) ===
-    const memoryMd = await readMemoryFile(path.join(HERMES_HOME, 'MEMORY.md'), 2200);
-    const userMd = await readMemoryFile(path.join(HERMES_HOME, 'USER.md'), 1375);
-    const identityMd = await readMemoryFile(path.join(HERMES_HOME, 'IDENTITY.md'), 5000);
-    const soulMd = await readMemoryFile(path.join(HERMES_HOME, 'SOUL.md'), 5000);
+    const [memoryMd, userMd, identityMd, soulMd] = await Promise.all([
+      readMemoryFile(path.join(HERMES_HOME, 'MEMORY.md'), 2200),
+      readMemoryFile(path.join(HERMES_HOME, 'USER.md'), 1375),
+      readMemoryFile(path.join(HERMES_HOME, 'IDENTITY.md'), 5000),
+      readMemoryFile(path.join(HERMES_HOME, 'SOUL.md'), 5000),
+    ]);
 
     // === L2: Semantic Memory (memory_store.db) ===
     let l2Stats = { exists: false, size: 0, factCount: 0 };
@@ -65,43 +73,37 @@ export async function GET() {
 
     // === L3: Episodic Memory (memories/*.md) ===
     const memoriesDir = path.join(HERMES_HOME, 'memories');
-    const episodicMemories: EpisodicMemory[] = [];
-    
-    try {
-      const files = await fs.readdir(memoriesDir);
-      
-      for (const file of files.sort().reverse()) {
-        if (!file.endsWith('.md') && !file.endsWith('.json')) continue;
-        if (file === 'goals.json') continue; // Skip — separate endpoint
-        
-        try {
-          const filePath = path.join(memoriesDir, file);
-          const stats = await fs.stat(filePath);
-          let preview = '';
-          
-          try {
-            const content = await fs.readFile(filePath, 'utf-8');
-            // Get first 200 chars as preview, strip markdown headers
-            preview = content
-              .split('\n')
-              .filter(line => !line.startsWith('#') && line.trim().length > 0)
-              .slice(0, 3)
-              .join(' ')
-              .slice(0, 200);
-          } catch {
-            // Can't read content
-          }
+    let episodicMemories: EpisodicMemory[] = [];
 
-          episodicMemories.push({
+    try {
+      const files = (await fs.readdir(memoriesDir))
+        .filter((f) => (f.endsWith('.md') || f.endsWith('.json')) && f !== 'goals.json')
+        .sort()
+        .reverse();
+
+      const previews = await Promise.all(
+        files.map(async (file) => {
+          const filePath = path.join(memoriesDir, file);
+          const [stats, content] = await Promise.all([
+            fs.stat(filePath).catch(() => null),
+            fs.readFile(filePath, 'utf-8').catch(() => ''),
+          ]);
+          if (!stats) return null;
+          const preview = content
+            .split('\n')
+            .filter((line) => !line.startsWith('#') && line.trim().length > 0)
+            .slice(0, 3)
+            .join(' ')
+            .slice(0, 200);
+          return {
             name: file,
             size: stats.size,
             lastModified: stats.mtime.toISOString(),
             preview,
-          });
-        } catch {
-          // Skip unreadable files
-        }
-      }
+          };
+        })
+      );
+      episodicMemories = previews.filter((m): m is EpisodicMemory => m !== null);
     } catch {
       // Memories directory doesn't exist
     }

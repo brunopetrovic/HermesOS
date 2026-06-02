@@ -5,19 +5,118 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn, formatTime } from '@/lib/utils';
-import { motion } from 'framer-motion';
 import { Icon } from '@iconify/react';
-import { useState, useRef, useEffect } from 'react';
-import { Agent } from '@/types';
+import { useShallow } from 'zustand/react/shallow';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Agent, CouncilMessage } from '@/types';
+
+type StreamDelta = { choices?: Array<{ delta?: { content?: string } }> };
+type StreamError = { error?: string };
+
+function isStreamError(payload: StreamDelta | StreamError): payload is StreamError {
+  return 'error' in payload;
+}
 
 export function CouncilChat() {
-  const { messages, agents, isLoading, addMessage, setLoading } = useCouncilStore();
+  const { messages, agents, isLoading, addMessage, setLoading } = useCouncilStore(
+    useShallow(s => ({
+      messages: s.messages,
+      agents: s.agents,
+      isLoading: s.isLoading,
+      addMessage: s.addMessage,
+      setLoading: s.setLoading,
+    }))
+  );
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    return () => abortRef.current?.abort();
   }, [messages]);
+
+  const streamCouncilReply = useCallback(async (
+    agentId: string,
+    history: { role: 'user' | 'assistant' | 'system'; content: string }[]
+  ) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    addMessage({ role: 'assistant', agentId, content: '' });
+    const replyId = useCouncilStore.getState().messages[useCouncilStore.getState().messages.length - 1]?.id;
+    if (!replyId) return;
+
+    try {
+      const res = await fetch('/api/agent/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'council-local',
+          messages: history,
+          stream: true,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error(`Council stream failed (HTTP ${res.status})`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let accumulated = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIdx: number;
+        while ((newlineIdx = buffer.indexOf('\n\n')) !== -1) {
+          const chunk = buffer.slice(0, newlineIdx);
+          buffer = buffer.slice(newlineIdx + 2);
+          const line = chunk.replace(/^data:\s*/, '').trim();
+          if (!line || line === '[DONE]') continue;
+
+          try {
+            const payload = JSON.parse(line) as StreamDelta | StreamError;
+            if (isStreamError(payload) && payload.error) {
+              throw new Error(payload.error);
+            }
+            if (!isStreamError(payload)) {
+              const delta = payload.choices?.[0]?.delta?.content;
+              if (delta) {
+                accumulated += delta;
+                const finalText = accumulated;
+                useCouncilStore.setState((state) => ({
+                  messages: state.messages.map((m: CouncilMessage) =>
+                    m.id === replyId ? { ...m, content: finalText } : m
+                  ),
+                }));
+              }
+            }
+          } catch (parseError) {
+            if (parseError instanceof Error && parseError.message !== 'Unexpected end of JSON input') {
+              console.warn('Council stream parse warning:', parseError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') return;
+      const detail = error instanceof Error ? error.message : 'Stream failed';
+      useCouncilStore.setState((state) => ({
+        messages: state.messages.map((m: CouncilMessage) =>
+          m.id === replyId
+            ? { ...m, content: m.content || `[${agentId}] offline: ${detail}` }
+            : m
+        ),
+      }));
+    }
+  }, [addMessage]);
 
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
@@ -26,40 +125,16 @@ export function CouncilChat() {
     setInputValue('');
     setLoading(true);
 
-    // Add user message
-    addMessage({
-      role: 'user',
-      content: userMessage,
-    });
+    addMessage({ role: 'user', content: userMessage });
 
-    // Simulate multi-agent responses
-    setTimeout(() => {
-      // 1. Una responds first
-      addMessage({
-        role: 'assistant',
-        agentId: 'una',
-        content: `I've received your request: "${userMessage}". Hermes Dev, Hermes Research, what are your thoughts?`,
-      });
+    const history = useCouncilStore.getState().messages.map((m: CouncilMessage) => ({
+      role: m.role,
+      content: m.content,
+    }));
+    history.push({ role: 'user' as const, content: userMessage });
 
-      setTimeout(() => {
-        // 2. Hermes Dev responds
-        addMessage({
-          role: 'assistant',
-          agentId: 'hermes-dev',
-          content: "I'm analyzing the technical requirements for this. We can implement a robust solution using the current architecture.",
-        });
-
-        setTimeout(() => {
-          // 3. Hermes Research responds
-          addMessage({
-            role: 'assistant',
-            agentId: 'hermes-research',
-            content: "I've cross-referenced our knowledge base. Similar tasks in the past were optimized by prioritizing the sync layer.",
-          });
-          setLoading(false);
-        }, 1200);
-      }, 1000);
-    }, 800);
+    setLoading(false);
+    await streamCouncilReply('una', history);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -76,7 +151,6 @@ export function CouncilChat() {
 
   return (
     <Card className="flex flex-col h-full bg-surface border-border overflow-hidden shadow-2xl">
-      {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center opacity-50">
@@ -93,14 +167,12 @@ export function CouncilChat() {
             {messages.map((message) => {
               const isUser = message.role === 'user';
               const agent = getAgent(message.agentId);
-              
+
               return (
-                <motion.div
+                <div
                   key={message.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
                   className={cn(
-                    "flex flex-col gap-2",
+                    "flex flex-col gap-2 animate-fade-in",
                     isUser ? "items-end" : "items-start"
                   )}
                 >
@@ -128,16 +200,16 @@ export function CouncilChat() {
 
                   <div className={cn(
                     "px-4 py-3 rounded-2xl text-sm leading-relaxed max-w-[85%] md:max-w-[75%]",
-                    isUser 
-                      ? "bg-accent text-bg-primary rounded-tr-none shadow-lg shadow-accent/20" 
+                    isUser
+                      ? "bg-accent text-bg-primary rounded-tr-none shadow-lg shadow-accent/20"
                       : "bg-bg-secondary border border-border text-text-primary rounded-tl-none"
                   )}>
                     {message.content}
                   </div>
-                </motion.div>
+                </div>
               );
             })}
-            
+
             {isLoading && (
               <div className="flex items-center gap-3 text-text-secondary text-xs animate-pulse italic">
                 <div className="flex gap-1">
@@ -153,7 +225,6 @@ export function CouncilChat() {
         )}
       </div>
 
-      {/* Input Bar */}
       <div className="p-4 bg-bg-secondary/50 border-t border-border">
         <div className="flex items-center gap-3">
           <Input

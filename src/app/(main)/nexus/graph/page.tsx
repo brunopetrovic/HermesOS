@@ -1,9 +1,14 @@
 'use client';
 
 import { Icon } from '@iconify/react';
+import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { KnowledgeGraph2D } from '@/components/graph/knowledge-graph-2d';
-import { KnowledgeGraph3D } from '@/components/graph/knowledge-graph-3d';
+
+const KnowledgeGraph3D = dynamic(
+  () => import('@/components/graph/knowledge-graph-3d').then(m => m.KnowledgeGraph3D),
+  { ssr: false, loading: () => <div className="w-full h-full flex items-center justify-center text-xs text-slate-500">Loading 3D engine…</div> }
+);
 
 export default function KnowledgeGraphPage() {
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');

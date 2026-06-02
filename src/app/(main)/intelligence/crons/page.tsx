@@ -2,13 +2,21 @@
 
 import { Icon } from '@iconify/react';
 import { useHermesStore } from '@/lib/store/hermes-store';
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect } from 'react';
 import { formatRelative } from '@/lib/utils';
 
 export default function IntelligenceCronsPage() {
-  const { cronJobs, cronsStats, cronsLoading, fetchCrons } = useHermesStore();
+  const { cronJobs, cronsStats, cronsLoading, fetchCrons } = useHermesStore(
+    useShallow(s => ({
+      cronJobs: s.cronJobs,
+      cronsStats: s.cronsStats,
+      cronsLoading: s.cronsLoading,
+      fetchCrons: s.fetchCrons,
+    }))
+  );
 
-  useEffect(() => { fetchCrons(); }, [fetchCrons]);
+  useEffect(() => { fetchCrons(); }, []);
 
   return (
     <>

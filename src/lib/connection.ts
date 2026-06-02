@@ -14,6 +14,7 @@
  * upgraded to multi-user mode, this module is the only place that needs to swap
  * file storage for per-user database rows.
  */
+import 'server-only';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
@@ -27,6 +28,7 @@ import {
   type HarnessConnectionMode,
   type HarnessConfigField,
 } from '@/lib/agent-harnesses';
+import { decryptSecret, encryptSecret } from '@/lib/secret-crypto';
 
 export type { AgentType } from '@/lib/agent-harnesses';
 
@@ -91,8 +93,8 @@ export interface GatewayProbeResult {
 }
 
 const CONFIG_DIR =
-  process.env.UNOX_CONFIG_DIR || path.join(os.homedir() || '/tmp', '.unox');
-const CONFIG_PATH = path.join(CONFIG_DIR, 'connection.json');
+  process.env.UNOX_CONFIG_DIR || path.join(/* turbopackIgnore: true */ os.homedir() || '/tmp', '.unox');
+const CONFIG_PATH = path.join(/* turbopackIgnore: true */ CONFIG_DIR, 'connection.json');
 
 const DEFAULT_GATEWAY_URL = 'http://localhost:8642';
 
@@ -102,7 +104,7 @@ const PRESETS: ConnectionDiscovery['presets'] = HARNESS_PRESETS.map((preset) => 
 }));
 
 function homeDir(): string {
-  return os.homedir() || process.env.HOME || '/tmp';
+  return /* turbopackIgnore: true */ os.homedir() || process.env.HOME || '/tmp';
 }
 
 function envHomePath(): string | undefined {
@@ -142,7 +144,7 @@ function parseAgentType(value?: string): AgentType | undefined {
 
 function expandHome(value: string): string {
   if (value === '~') return homeDir();
-  if (value.startsWith('~/')) return path.join(homeDir(), value.slice(2));
+  if (value.startsWith('~/')) return path.join(/* turbopackIgnore: true */ homeDir(), value.slice(2));
   return value;
 }
 
@@ -161,11 +163,51 @@ async function pathExists(filePath: string): Promise<boolean> {
 
 async function readFileConfig(): Promise<Partial<AgentConnection> | null> {
   try {
-    const raw = await fs.readFile(CONFIG_PATH, 'utf-8');
-    return JSON.parse(raw) as Partial<AgentConnection>;
+    const cached = await getCachedFileConfig();
+    if (cached) {
+      return cached;
+    }
+    const raw = await fs.readFile(/* turbopackIgnore: true */ CONFIG_PATH, 'utf-8');
+    const parsed = JSON.parse(raw) as Partial<AgentConnection> & { apiKey?: string };
+    if (parsed.apiKey) parsed.apiKey = decryptSecret(parsed.apiKey);
+    setCachedFileConfig(parsed);
+    return parsed;
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// In-memory cache for ~/.unox/connection.json
+// ---------------------------------------------------------------------------
+// The connection file is read on every API request and is the main latency
+// contributor for /api/connection*, /api/agent/stream, and the dashboard.
+// We cache the parsed + decrypted value keyed on the file's mtime, so writes
+// through {@link saveConnection} or {@link clearConnection} are picked up
+// on the next read automatically. The cache is per-process; in serverless
+// environments that means a cold start still hits disk once.
+
+let cachedConfig: { mtimeMs: number; data: Partial<AgentConnection> } | null = null;
+
+async function getCachedFileConfig(): Promise<Partial<AgentConnection> | null> {
+  if (!cachedConfig) return null;
+  try {
+    const stat = await fs.stat(/* turbopackIgnore: true */ CONFIG_PATH);
+    if (stat.mtimeMs === cachedConfig.mtimeMs) {
+      return cachedConfig.data;
+    }
+    cachedConfig = null;
+    return null;
+  } catch {
+    cachedConfig = null;
+    return null;
+  }
+}
+
+function setCachedFileConfig(data: Partial<AgentConnection>): void {
+  // The mtime will be re-checked on the next call; we optimistically assume
+  // the read just succeeded so a stat immediately after read should be cheap.
+  cachedConfig = { mtimeMs: Date.now(), data };
 }
 
 /**
@@ -216,9 +258,9 @@ export async function getConnectionDiscovery(): Promise<ConnectionDiscovery> {
       exists: false,
       source: process.env.OPENCLAW_WORKSPACE ? 'OPENCLAW_WORKSPACE' : 'default',
     },
-    { agentType: 'openclaw', path: path.join(homes, 'openclaw-workspace'), exists: false, source: 'common' },
-    { agentType: 'openclaw', path: path.join(homes, 'clawd'), exists: false, source: 'common' },
-    { agentType: 'openclaw', path: path.join(homes, 'molty'), exists: false, source: 'common' },
+    { agentType: 'openclaw', path: path.join(/* turbopackIgnore: true */ homes, 'openclaw-workspace'), exists: false, source: 'common' },
+    { agentType: 'openclaw', path: path.join(/* turbopackIgnore: true */ homes, 'clawd'), exists: false, source: 'common' },
+    { agentType: 'openclaw', path: path.join(/* turbopackIgnore: true */ homes, 'molty'), exists: false, source: 'common' },
     {
       agentType: 'custom',
       path: expandHome(process.env.AGENT_HOME || '~/.agent'),
@@ -282,8 +324,14 @@ export async function saveConnection(
     connectedAt: new Date().toISOString(),
   };
 
+  const persisted: AgentConnection = {
+    ...next,
+    apiKey: next.apiKey ? encryptSecret(next.apiKey) : next.apiKey,
+  };
+
   await fs.mkdir(CONFIG_DIR, { recursive: true });
-  await fs.writeFile(CONFIG_PATH, JSON.stringify(next, null, 2), 'utf-8');
+  await fs.writeFile(CONFIG_PATH, JSON.stringify(persisted, null, 2), 'utf-8');
+  setCachedFileConfig(next);
   return next;
 }
 
@@ -294,11 +342,13 @@ export async function clearConnection(): Promise<void> {
   } catch {
     // Already gone.
   }
+  cachedConfig = null;
 }
 
 /**
  * Probes a gateway to verify reachability. Checks common local-agent and
- * OpenAI-compatible endpoints before accepting root as a degraded success.
+ * OpenAI-compatible endpoints in parallel, bounded by a single overall
+ * {@link timeoutMs} budget. Returns the first successful response.
  */
 export async function probeGateway(
   gatewayUrl: string,
@@ -310,38 +360,62 @@ export async function probeGateway(
   const headers: Record<string, string> = {};
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
-  let lastStatus: number | null = null;
+  const controller = new AbortController();
+  const budget = setTimeout(() => controller.abort(), timeoutMs);
 
-  for (const endpoint of endpoints) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const res = await fetch(`${base}${endpoint}`, {
-        headers,
-        signal: controller.signal,
-      });
+  const tasks = endpoints.map(async (endpoint) => {
+    const res = await fetch(`${base}${endpoint}`, { headers, signal: controller.signal });
+    return { endpoint, res };
+  });
+
+  try {
+    const results = await Promise.race([
+      Promise.allSettled(tasks),
+      new Promise<{ kind: 'timeout' }>((resolve) =>
+        controller.signal.addEventListener('abort', () => resolve({ kind: 'timeout' }), { once: true })
+      ),
+    ]);
+
+    if ('kind' in results && results.kind === 'timeout') {
+      return { ok: false, status: null, detail: 'Connection timed out' };
+    }
+
+    const settled = results as PromiseSettledResult<{ endpoint: string; res: Response }>[];
+    let lastStatus: number | null = null;
+    let checkedEndpoint: string | null = null;
+    let anyResponded = false;
+
+    for (const r of settled) {
+      if (r.status !== 'fulfilled') {
+        continue;
+      }
+      const { endpoint, res } = r.value;
+      anyResponded = true;
       lastStatus = res.status;
       if (res.ok) {
+        checkedEndpoint = endpoint;
         return {
           ok: true,
           status: res.status,
-          checkedEndpoint: endpoint,
+          checkedEndpoint,
           detail: endpoint === '/' ? 'Gateway root reachable' : 'Gateway healthy',
         };
       }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return { ok: false, status: null, detail: 'Connection timed out', checkedEndpoint: endpoint };
-      }
-      // Keep trying the remaining common endpoints.
-    } finally {
-      clearTimeout(timer);
     }
-  }
 
-  return {
-    ok: false,
-    status: lastStatus,
-    detail: lastStatus ? `Gateway responded but no health endpoint succeeded (${lastStatus})` : 'Could not reach gateway',
-  };
+    return {
+      ok: false,
+      status: lastStatus,
+      detail: anyResponded
+        ? `Gateway responded but no health endpoint succeeded (${lastStatus})`
+        : 'Could not reach gateway',
+    };
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      return { ok: false, status: null, detail: 'Connection timed out' };
+    }
+    return { ok: false, status: null, detail: 'Could not reach gateway' };
+  } finally {
+    clearTimeout(budget);
+  }
 }

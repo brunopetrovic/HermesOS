@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, InstanceKey } from '@prisma/client';
-import { getServerSession } from 'next-auth';
-import { SessionUser } from '@/types';
+import { InstanceKey } from '@prisma/client';
+import { prisma } from '@/lib/db';
+import { requireUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
 
   const instanceKey = req.nextUrl.searchParams.get('instance') as InstanceKey | null;
 
@@ -15,26 +15,44 @@ export async function GET(req: NextRequest) {
     const goals = await prisma.goal.findMany({
       where: {
         instance: {
-          userId: (session.user as SessionUser).id,
+          userId: auth.user.id,
           key: instanceKey || undefined,
         },
       },
       include: {
-        milestones: true,
+        milestones: {
+          select: {
+            id: true,
+            title: true,
+            done: true,
+            dueDate: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
+      take: 100,
     });
     return NextResponse.json(goals);
-  } catch {
+  } catch (error) {
+    console.error('API GET Goals Error:', error);
     return NextResponse.json({ error: 'Failed to fetch goals' }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
 
-  const body = await req.json();
+  let body: { title?: string; description?: string; deadline?: string; instance?: InstanceKey };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  if (!body.title || !body.instance) {
+    return NextResponse.json({ error: 'title and instance are required' }, { status: 400 });
+  }
 
   try {
     const goal = await prisma.goal.create({
@@ -45,15 +63,16 @@ export async function POST(req: NextRequest) {
         instance: {
           connect: {
             userId_key: {
-              userId: (session.user as SessionUser).id,
-              key: body.instance as InstanceKey,
+              userId: auth.user.id,
+              key: body.instance,
             },
           },
         },
       },
     });
     return NextResponse.json(goal);
-  } catch {
+  } catch (error) {
+    console.error('API POST Goals Error:', error);
     return NextResponse.json({ error: 'Failed to create goal' }, { status: 500 });
   }
 }

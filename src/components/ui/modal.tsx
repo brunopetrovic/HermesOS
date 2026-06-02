@@ -2,8 +2,9 @@
 
 import { cn } from '@/lib/utils';
 import { Icon } from '@iconify/react';
-import { type HTMLAttributes, useEffect, useCallback } from 'react';
+import { type HTMLAttributes, useEffect, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
+import { useFocusTrap } from '@/lib/hooks/use-focus-trap';
 
 export interface ModalProps extends HTMLAttributes<HTMLDivElement> {
   isOpen: boolean;
@@ -25,6 +26,10 @@ function ModalContent({
   children,
   ...props
 }: ModalProps) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen);
+
   const handleEscape = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -55,40 +60,45 @@ function ModalContent({
 
   const modalContent = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-bg-primary/80 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
 
-      {/* Modal panel */}
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-describedby={description ? descriptionId : undefined}
+        tabIndex={-1}
         className={cn(
           `
-          relative w-full 
+          relative w-full
           bg-surface backdrop-blur-lg
           border border-border rounded-[var(--radius-lg)]
-          shadow-2xl
+          shadow-2xl outline-none
           `,
           sizeStyles[size],
           className
         )}
         {...props}
       >
-        {/* Header */}
         {(title || showCloseButton) && (
           <div className="flex items-start justify-between p-4 border-b border-border">
             <div>
               {title && (
-                <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+                <h2 id={titleId} className="text-lg font-semibold text-text-primary">{title}</h2>
               )}
               {description && (
-                <p className="mt-1 text-sm text-text-secondary">{description}</p>
+                <p id={descriptionId} className="mt-1 text-sm text-text-secondary">{description}</p>
               )}
             </div>
             {showCloseButton && (
               <button
                 onClick={onClose}
+                aria-label="Close dialog"
                 className="p-1.5 rounded-[var(--radius-sm)] text-text-secondary hover:text-text-primary hover:bg-surface transition-colors"
               >
                 <Icon icon="solar:close-circle-linear" className="h-4 w-4" />
@@ -97,7 +107,6 @@ function ModalContent({
           </div>
         )}
 
-        {/* Content */}
         <div className="p-4">{children}</div>
       </div>
     </div>
@@ -120,6 +129,10 @@ function ModalBottomSheet({
   children,
   ...props
 }: ModalProps) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -133,44 +146,48 @@ function ModalBottomSheet({
 
   const bottomSheetContent = (
     <div className="fixed inset-0 z-50 md:hidden">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-bg-primary/80 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
 
-      {/* Sheet */}
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-describedby={description ? descriptionId : undefined}
+        tabIndex={-1}
         className={cn(
           `
           absolute bottom-0 left-0 right-0
           bg-surface border-t border-border
           rounded-t-[24px] md:rounded-[var(--radius-lg)]
-          shadow-2xl max-h-[85vh] overflow-auto
+          shadow-2xl max-h-[85vh] overflow-auto outline-none
           `,
           className
         )}
         {...props}
       >
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
+        <div className="flex justify-center pt-3 pb-1" aria-hidden="true">
           <div className="w-10 h-1 bg-border rounded-full" />
         </div>
 
-        {/* Header */}
         {(title || showCloseButton) && (
           <div className="flex items-center justify-between px-4 pb-3">
             <div>
               {title && (
-                <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+                <h2 id={titleId} className="text-lg font-semibold text-text-primary">{title}</h2>
               )}
               {description && (
-                <p className="text-sm text-text-secondary">{description}</p>
+                <p id={descriptionId} className="text-sm text-text-secondary">{description}</p>
               )}
             </div>
             {showCloseButton && (
               <button
                 onClick={onClose}
+                aria-label="Close dialog"
                 className="p-1.5 rounded-[var(--radius-sm)] text-text-secondary hover:text-text-primary hover:bg-surface transition-colors"
               >
                 <Icon icon="solar:close-circle-linear" className="h-4 w-4" />
@@ -179,7 +196,6 @@ function ModalBottomSheet({
           </div>
         )}
 
-        {/* Content */}
         <div className="px-4 pb-8">{children}</div>
       </div>
     </div>

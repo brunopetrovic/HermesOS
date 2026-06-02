@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils';
 import { BOTTOM_NAV_ITEMS } from '@/types';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
 import { Icon } from '@iconify/react';
 
 const iconMap: Record<string, string> = {
@@ -58,13 +57,11 @@ export function BottomNav() {
             <div className="relative">
               <Icon icon={iconName} className="w-5 h-5" />
               {isActive && (
-                <motion.div
-                  layoutId="bottomNavActive"
+                <span
                   className={cn(
-                    'absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full',
+                    'absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full transition-colors',
                     item.id === 'nexus' ? 'bg-violet-400' : 'bg-orange-500'
                   )}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 />
               )}
             </div>

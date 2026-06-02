@@ -1,122 +1,44 @@
-# UNOX
+# HermesOS (formerly UNOX)
 
-UNOX is a local-first agent command center for connecting to and operating AI agents such as Hermes Agent, OpenClaw-compatible agents, and custom OpenAI-compatible gateways.
+HermesOS is a universal, clean-install, local-first agent cockpit and operating system. It allows developers and power users to connect their local AI agents (such as Hermes Agent, OpenClaw-compatible agents, and custom OpenAI-compatible gateways) to a premium, unified GUI.
 
-The goal is simple: install the GUI, connect your local agent gateway, then use one responsive desktop/tablet/mobile interface to monitor status, memory, skills, cron jobs, goals, sessions, workflows, and future agent-control tools.
+The app is perfectly optimized and highly responsive across **desktop**, **tablet**, and **mobile phone** viewports, preparing it for future native app packaging (Tauri).
 
-## Current status
+## Core Capabilities
 
-UNOX is a Next.js app today and is being prepared for native Linux, Windows, and macOS packaging later.
+- **Zero-Dependency Install**: SQLite-backed local storage (no Docker/Postgres database setup required).
+- **Universal Agent Onboarding**: High-fidelity step-by-step wizard to scan, test, and sync with your local agent in under 60 seconds.
+- **Operations Cockpit**: Real-time runs monitor, LLM token fuel gauges, live logs viewer, and active session browser.
+- **Intelligence Center**: Scheduled crons, visual multi-agent workflow canvases, and declarative agent extension plugin loaders.
+- **Brain & Memory Visualizer**: Direct editing of L1 working memory, searchable L2 facts, document intake, and interactive 2D/3D knowledge graphs.
 
-- Local-first by default
-- No required cloud provider
-- No secrets shown in the UI
-- Connection onboarding built into the app
-- Hermes Agent, OpenClaw-compatible, and custom gateway presets
-- Desktop/tablet/mobile responsive shell
+## Prerequisites
 
-## Requirements
-
-- Node.js 22+
+- Node.js 20+
 - npm 10+
-- A local agent gateway, for example:
-  - Hermes Agent gateway on `http://localhost:8642`
-  - OpenClaw-compatible HTTP gateway/dashboard
-  - Custom OpenAI-compatible local gateway
+- A running local agent gateway, e.g.:
+  - **Hermes Agent** on `http://localhost:8642`
+  - **OpenClaw Agent** on `http://localhost:3333`
+  - **Ollama / Custom gateway** on `http://localhost:11434`
 
-## Install
+## Quick Start
+
+Initialize your workspace, set up environment secrets, and bootstrap the local database automatically:
 
 ```bash
-npm ci
+# Run the setup wizard
+npm run setup
+
+# Start the application
 npm run dev
 ```
 
-Open:
+Open your browser at `http://localhost:3000`.
 
-```text
-http://localhost:3000
-```
+## Architecture & Configuration
 
-For a production build:
+Settings are saved locally inside:
+- Configuration file: `~/.unox/connection.json` (Override via `UNOX_CONFIG_DIR`)
+- Database: `prisma/dev.db` (SQLite)
 
-```bash
-npm run build
-npm run start
-```
-
-## First-run onboarding
-
-On first launch, UNOX opens the local agent setup flow.
-
-You can configure:
-
-- Agent type: `Hermes Agent`, `OpenClaw / Claw-compatible`, or `Custom`
-- Display label
-- Gateway URL
-- Optional bearer token / API key
-- Optional local agent home path
-
-The connection is saved locally in:
-
-```text
-~/.unox/connection.json
-```
-
-Set `UNOX_CONFIG_DIR` to store that file somewhere else.
-
-## Environment variables
-
-UNOX can also read connection defaults from environment variables. Start by copying the example file:
-
-```bash
-cp .env.example .env.local
-```
-
-Then edit `.env.local` as needed:
-
-```bash
-HERMES_GATEWAY_URL=http://localhost:8642
-HERMES_HOME=~/.hermes
-HERMES_API_KEY=
-
-OPENCLAW_GATEWAY_URL=http://localhost:3333
-OPENCLAW_WORKSPACE=~/.openclaw-workspace
-OPENCLAW_API_KEY=
-
-AGENT_TYPE=custom
-AGENT_GATEWAY_URL=http://localhost:11434
-AGENT_HOME=~/.agent
-AGENT_API_KEY=
-```
-
-Saved onboarding config takes priority over environment defaults.
-
-## Gateway probing
-
-The onboarding tester checks common local-agent endpoints:
-
-- `/health`
-- `/v1/models`
-- `/api/health`
-- `/api/status`
-- `/`
-
-A gateway-only connection is enough for basic reachability. Providing a home path unlocks richer local file-backed panels such as status, memory, skills, crons, and sessions.
-
-## Development commands
-
-```bash
-npm run lint
-npm run build
-```
-
-Current lint policy: errors should stay at zero. Warnings are tracked cleanup debt.
-
-## Architecture notes
-
-See:
-
-```text
-docs/UNOX_PRODUCT_ARCHITECTURE.md
-docs/PAPERCLIP_AGENT_HARNESS_RESEARCH.md
-```
+For advanced settings, customize `.env.local` based on `.env.example`.

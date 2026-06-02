@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getConnection } from '@/lib/connection';
+import { requireUser } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 interface GatewayState {
   pid: number;
@@ -46,6 +49,9 @@ async function checkGatewayHttp(gatewayUrl: string, apiKey?: string): Promise<bo
 }
 
 export async function GET() {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const conn = await getConnection();
   if (!conn?.gatewayUrl) {
     return NextResponse.json({

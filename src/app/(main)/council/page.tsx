@@ -4,6 +4,7 @@ import { useCouncilStore } from '@/lib/store/council-store';
 import { CouncilChat } from '@/components/council/council-chat';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@iconify/react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect } from 'react';
 import { Agent } from '@/types';
 
@@ -32,7 +33,12 @@ const INITIAL_AGENTS: Agent[] = [
 ];
 
 export default function CouncilPage() {
-  const { agents, setAgents } = useCouncilStore();
+  const { agents, setAgents } = useCouncilStore(
+    useShallow(s => ({
+      agents: s.agents,
+      setAgents: s.setAgents,
+    }))
+  );
 
   useEffect(() => {
     if (agents.length === 0) {

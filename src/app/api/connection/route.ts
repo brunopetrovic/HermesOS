@@ -15,11 +15,15 @@ import {
   sanitizeDiscoveryForClient,
   sanitizeUrlForClient,
 } from '@/lib/public-agent-config';
+import { requireUser } from '@/lib/auth';
 
 const MAX_ADAPTER_CONFIG_BYTES = 20_000;
 
 /** Returns the current connection with secrets masked. */
 export async function GET() {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const [conn, discovery] = await Promise.all([getConnection(), getConnectionDiscovery()]);
   const safeDiscovery = sanitizeDiscoveryForClient(discovery);
   if (!conn) {
@@ -34,6 +38,9 @@ export async function GET() {
 
 /** Saves (or updates) the connection. */
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -93,6 +100,9 @@ export async function POST(req: NextRequest) {
 
 /** Disconnects the agent. */
 export async function DELETE() {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   await clearConnection();
   return NextResponse.json({ connected: false, connection: null });
 }

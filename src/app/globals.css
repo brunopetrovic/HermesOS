@@ -15,9 +15,84 @@
   --color-border-subtle: rgba(51, 58, 71, 0.2);
   --color-border-card: rgba(51, 58, 71, 0.4);
   --color-border-btn: rgba(71, 82, 102, 0.3);
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-accent-glow: var(--accent-glow);
+  --color-border: var(--border);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
 
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  --bg-primary: #050505;
+  --bg-secondary: #0c0e12;
+  --surface: #161920;
+  --accent: #f97316;
+  --accent-glow: rgba(249, 115, 22, 0.32);
+  --border: rgba(51, 58, 71, 0.42);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+}
+
+[data-realm="personal"] {
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #1a1a2e;
+  --surface: #16213e;
+  --accent: #c9a84c;
+  --accent-glow: rgba(201, 168, 76, 0.28);
+  --border: #2a2a4a;
+  --text-primary: #f0e6d3;
+  --text-secondary: #a8a29e;
+}
+
+[data-realm="brand"] {
+  --bg-primary: #0d0015;
+  --bg-secondary: #1a0025;
+  --surface: #2d0040;
+  --accent: #f093fb;
+  --accent-glow: rgba(240, 147, 251, 0.32);
+  --border: #4d0055;
+  --text-primary: #ffffff;
+  --text-secondary: #c4c4d4;
+  --radius-md: 0.9rem;
+}
+
+[data-realm="business"] {
+  --bg-primary: #050505;
+  --bg-secondary: #0a0a0a;
+  --surface: #141414;
+  --accent: #dc2626;
+  --accent-glow: rgba(220, 38, 38, 0.28);
+  --border: #222222;
+  --text-primary: #e8e8e8;
+  --text-secondary: #7a7a7a;
+  --radius-md: 0.35rem;
+}
+
+[data-realm="nexus"] {
+  --bg-primary: #05030a;
+  --bg-secondary: #0f0b1c;
+  --surface: #171123;
+  --accent: #a78bfa;
+  --accent-glow: rgba(167, 139, 250, 0.3);
+  --border: rgba(124, 58, 237, 0.32);
+  --text-primary: #f8fafc;
+  --text-secondary: #a5b4fc;
 }
 
 /* ==========================================
@@ -27,16 +102,23 @@
   box-sizing: border-box;
 }
 
-html, body {
+body {
   height: 100dvh;
   margin: 0;
   padding: 0;
-  background: #000000;
-  color: #ffffff;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  background: #000000;
 }
 
 /* Hide all scrollbars — app-like UI */
@@ -400,4 +482,48 @@ html, body {
 .command-backdrop {
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(12px) saturate(1.2);
+}
+
+/* ==========================================
+   ADDED RESPONSIVE & PREMIUM DESIGNS
+   ========================================== */
+.custom-scrollbar::-webkit-scrollbar {
+  display: block !important;
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.safe-padding-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.glass-panel {
+  background: rgba(12, 14, 18, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
 }

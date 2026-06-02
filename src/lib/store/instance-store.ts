@@ -1,20 +1,15 @@
 import { create } from 'zustand';
-import { InstanceType } from '@/types';
+import { persist } from 'zustand/middleware';
+import type { InstanceType } from '@/types';
 
 export interface InstanceState {
   currentInstance: InstanceType;
   animationEnabled: boolean;
   sidebarCollapsed: boolean;
   isSidebarOpen: boolean;
-
-  // Focus Mode
   focusModeActive: boolean;
-
-  // Ambient Sound
   ambientSoundEnabled: boolean;
-  ambientSoundVolume: number; // 0-100
-
-  // Actions
+  ambientSoundVolume: number;
   setCurrentInstance: (instance: InstanceType) => void;
   toggleAnimation: () => void;
   toggleSidebar: () => void;
@@ -26,24 +21,37 @@ export interface InstanceState {
   setAmbientSoundVolume: (volume: number) => void;
 }
 
-export const useInstanceStore = create<InstanceState>((set) => ({
-  currentInstance: 'personal',
-  animationEnabled: true,
-  sidebarCollapsed: false,
-  isSidebarOpen: false,
+export const useInstanceStore = create<InstanceState>()(
+  persist(
+    (set) => ({
+      currentInstance: 'personal',
+      animationEnabled: true,
+      sidebarCollapsed: false,
+      isSidebarOpen: false,
+      focusModeActive: false,
+      ambientSoundEnabled: false,
+      ambientSoundVolume: 30,
 
-  focusModeActive: false,
-
-  ambientSoundEnabled: false,
-  ambientSoundVolume: 30,
-
-  setCurrentInstance: (instance) => set({ currentInstance: instance }),
-  toggleAnimation: () => set((state) => ({ animationEnabled: !state.animationEnabled })),
-  toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
-  setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
-  setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
-  toggleFocusMode: () => set((state) => ({ focusModeActive: !state.focusModeActive })),
-  setFocusMode: (active) => set({ focusModeActive: active }),
-  toggleAmbientSound: () => set((state) => ({ ambientSoundEnabled: !state.ambientSoundEnabled })),
-  setAmbientSoundVolume: (volume) => set({ ambientSoundVolume: Math.max(0, Math.min(100, volume)) }),
-}));
+      setCurrentInstance: (instance) => set({ currentInstance: instance }),
+      toggleAnimation: () => set((state) => ({ animationEnabled: !state.animationEnabled })),
+      toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+      setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
+      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+      toggleFocusMode: () => set((state) => ({ focusModeActive: !state.focusModeActive })),
+      setFocusMode: (active) => set({ focusModeActive: active }),
+      toggleAmbientSound: () => set((state) => ({ ambientSoundEnabled: !state.ambientSoundEnabled })),
+      setAmbientSoundVolume: (volume) =>
+        set({ ambientSoundVolume: Math.max(0, Math.min(100, volume)) }),
+    }),
+    {
+      name: 'unox-instance',
+      partialize: (state) => ({
+        animationEnabled: state.animationEnabled,
+        sidebarCollapsed: state.sidebarCollapsed,
+        focusModeActive: state.focusModeActive,
+        ambientSoundEnabled: state.ambientSoundEnabled,
+        ambientSoundVolume: state.ambientSoundVolume,
+      }),
+    }
+  )
+);

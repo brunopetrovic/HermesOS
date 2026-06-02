@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getConnection } from '@/lib/connection';
+import { requireUser } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 interface Skill {
   name: string;
@@ -135,6 +138,9 @@ async function scanSkillDir(dirPath: string, source: 'custom' | 'bundled'): Prom
 }
 
 export async function GET() {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   try {
     const conn = await getConnection();
     const hermesHome =

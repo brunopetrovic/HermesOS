@@ -1,114 +1,149 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
-import { SessionUser } from '@/types';
+import { prisma } from '@/lib/db';
+import { requireUser } from '@/lib/auth';
+import { syncGoalSchema, syncPushSchema, syncTaskSchema } from '@/lib/schemas';
 
-const prisma = new PrismaClient();
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
 
-  const body = await req.json();
-  const { type, data } = body;
+  let body: { type?: string; data?: unknown[] };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const parsed = syncPushSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid sync payload', details: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const { type, data } = parsed.data;
 
   try {
-    let synced = 0;
-    const errors: string[] = [];
-    const userId = (session.user as SessionUser).id;
-
     if (type === 'tasks') {
-      for (const task of data) {
-        try {
-          await prisma.task.upsert({
+      const tasksResult = syncTaskSchema.array().safeParse(data);
+      if (!tasksResult.success) {
+        return NextResponse.json({ error: 'Invalid task sync data', details: tasksResult.error.flatten() }, { status: 400 });
+      }
+      const tasks = tasksResult.data;
+      const now = new Date();
+      await prisma.$transaction([
+        ...tasks.map((task) =>
+          prisma.task.upsert({
             where: { id: task.id },
             update: {
               title: task.title,
               description: task.description,
-              status: task.status,
-              priority: task.priority,
-              column: task.column,
+              status: task.status as never,
+              priority: task.priority as never,
+              column: task.column || task.status,
               dueDate: task.dueDate ? new Date(task.dueDate) : null,
-              updatedAt: new Date(),
+              updatedAt: now,
             },
             create: {
               id: task.id,
               title: task.title,
               description: task.description,
-              status: task.status,
-              priority: task.priority,
-              column: task.column || 'todo',
+              status: task.status as never,
+              priority: task.priority as never,
+              column: task.column || task.status,
               dueDate: task.dueDate ? new Date(task.dueDate) : null,
               instance: {
                 connect: {
                   userId_key: {
-                    userId,
-                    key: task.instance,
+                    userId: auth.user.id,
+                    key: task.instance as never,
                   },
                 },
               },
             },
-          });
-          synced++;
-        } catch (e: unknown) {
-          const message = e instanceof Error ? e.message : 'Unknown error';
-          errors.push(`Task ${task.id}: ${message}`);
-        }
+          })
+        ),
+        prisma.syncLog.create({
+          data: {
+            direction: 'from_local',
+            entityType: type,
+            entityId: 'batch',
+            payload: body as never,
+            status: 'success',
+          },
+        }),
+      ]);
+      return NextResponse.json({ synced: tasks.length, errors: [] });
+    }
+
+    if (type === 'goals') {
+      const goalsResult = syncGoalSchema.array().safeParse(data);
+      if (!goalsResult.success) {
+        return NextResponse.json({ error: 'Invalid goal sync data', details: goalsResult.error.flatten() }, { status: 400 });
       }
-    } else if (type === 'goals') {
-       for (const goal of data) {
-        try {
-          await prisma.goal.upsert({
+      const goals = goalsResult.data;
+      const now = new Date();
+      await prisma.$transaction([
+        ...goals.map((goal) =>
+          prisma.goal.upsert({
             where: { id: goal.id },
             update: {
               title: goal.title,
               description: goal.description,
-              progress: goal.progress,
-              status: goal.status,
+              progress: goal.progress || 0,
+              status: (goal.status || 'active') as never,
               deadline: goal.deadline ? new Date(goal.deadline) : null,
-              updatedAt: new Date(),
+              updatedAt: now,
             },
             create: {
               id: goal.id,
               title: goal.title,
               description: goal.description,
               progress: goal.progress || 0,
-              status: goal.status || 'active',
+              status: (goal.status || 'active') as never,
               deadline: goal.deadline ? new Date(goal.deadline) : null,
               instance: {
                 connect: {
                   userId_key: {
-                    userId,
-                    key: goal.instance,
+                    userId: auth.user.id,
+                    key: goal.instance as never,
                   },
                 },
               },
             },
-          });
-          synced++;
-        } catch (e: unknown) {
-          const message = e instanceof Error ? e.message : 'Unknown error';
-          errors.push(`Goal ${goal.id}: ${message}`);
-        }
-      }
+          })
+        ),
+        prisma.syncLog.create({
+          data: {
+            direction: 'from_local',
+            entityType: type,
+            entityId: 'batch',
+            payload: body as never,
+            status: 'success',
+          },
+        }),
+      ]);
+      return NextResponse.json({ synced: goals.length, errors: [] });
     }
 
-    // Log the sync operation
-    await prisma.syncLog.create({
-      data: {
-        direction: 'from_local',
-        entityType: type,
-        entityId: 'batch',
-        payload: body,
-        status: errors.length === 0 ? 'success' : 'failed',
-        error: errors.length > 0 ? errors.join(', ') : null,
-      },
-    });
-
-    return NextResponse.json({ synced, errors });
+    return NextResponse.json({ error: `Unsupported sync type: ${type}` }, { status: 400 });
   } catch (error: unknown) {
     console.error('Sync Push Error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
+    try {
+      await prisma.syncLog.create({
+        data: {
+          direction: 'from_local',
+          entityType: type,
+          entityId: 'batch',
+          payload: body as never,
+          status: 'failed',
+          error: message,
+        },
+      });
+    } catch {
+      // best-effort log; ignore secondary failure
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

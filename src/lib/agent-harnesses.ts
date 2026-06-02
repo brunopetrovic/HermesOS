@@ -35,6 +35,10 @@ export interface HarnessPreset {
   description: string;
   paperclipPattern: string;
   capabilities: HarnessCapability[];
+  canChat: boolean;
+  canExecuteTask: boolean;
+  canStreamLogs: boolean;
+  canSyncMemory: boolean;
   healthEndpoints: string[];
   configFields: HarnessConfigField[];
   safetyNotes: string[];
@@ -80,6 +84,10 @@ export const HARNESS_PRESETS: HarnessPreset[] = [
       'bearer-auth',
       'skill-sync',
     ],
+    canChat: true,
+    canExecuteTask: true,
+    canStreamLogs: true,
+    canSyncMemory: true,
     healthEndpoints: ['/health', '/api/health', '/api/status', '/v1/models', '/'],
     configFields: [
       ...commonGatewayFields,
@@ -125,6 +133,10 @@ export const HARNESS_PRESETS: HarnessPreset[] = [
     paperclipPattern:
       'Paperclip models OpenClaw as a gateway adapter: the control plane posts context to a gateway and observes the response instead of owning the runtime.',
     capabilities: ['gateway-probe', 'webhook-invocation', 'runtime-logs', 'bearer-auth'],
+    canChat: true,
+    canExecuteTask: true,
+    canStreamLogs: true,
+    canSyncMemory: false,
     healthEndpoints: ['/api/health', '/health', '/api/status', '/'],
     configFields: [
       ...commonGatewayFields,
@@ -155,6 +167,10 @@ export const HARNESS_PRESETS: HarnessPreset[] = [
     paperclipPattern:
       'Paperclip keeps this as adapter config rather than hardcoded provider logic: URL, key, model, and invocation behavior are data.',
     capabilities: ['gateway-probe', 'model-discovery', 'bearer-auth'],
+    canChat: true,
+    canExecuteTask: false,
+    canStreamLogs: false,
+    canSyncMemory: false,
     healthEndpoints: ['/v1/models', '/health', '/api/status', '/'],
     configFields: [
       ...commonGatewayFields,
@@ -183,6 +199,10 @@ export const HARNESS_PRESETS: HarnessPreset[] = [
     paperclipPattern:
       'Paperclip’s generic HTTP adapter sends a payload containing run id, agent id, and context. UNOX stores the same adapter-shape now and can invoke it later.',
     capabilities: ['gateway-probe', 'webhook-invocation', 'bearer-auth'],
+    canChat: true,
+    canExecuteTask: false,
+    canStreamLogs: false,
+    canSyncMemory: false,
     healthEndpoints: ['/health', '/api/health', '/status', '/'],
     configFields: [
       ...commonGatewayFields,
@@ -219,6 +239,10 @@ export const HARNESS_PRESETS: HarnessPreset[] = [
     paperclipPattern:
       'Paperclip’s process adapter persists command, args, cwd, env, timeout, and logs. UNOX captures the same harness contract without auto-executing arbitrary commands from setup.',
     capabilities: ['command-invocation', 'runtime-logs'],
+    canChat: false,
+    canExecuteTask: true,
+    canStreamLogs: true,
+    canSyncMemory: false,
     healthEndpoints: [],
     configFields: [
       {
@@ -266,6 +290,10 @@ export const HARNESS_PRESETS: HarnessPreset[] = [
     paperclipPattern:
       'Paperclip’s strongest idea is not the built-ins; it is treating runtime-specific details as adapter config. Custom keeps that door open.',
     capabilities: ['gateway-probe', 'bearer-auth'],
+    canChat: true,
+    canExecuteTask: false,
+    canStreamLogs: false,
+    canSyncMemory: false,
     healthEndpoints: ['/health', '/v1/models', '/api/health', '/api/status', '/'],
     configFields: [
       ...commonGatewayFields,

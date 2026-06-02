@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import { Icon } from '@iconify/react';
+import { useShallow } from 'zustand/react/shallow';
 import { useHermesStore } from '@/lib/store/hermes-store';
 import { useEffect } from 'react';
 import { formatRelative } from '@/lib/utils';
@@ -12,7 +13,15 @@ interface ActivitySidebarProps {
 }
 
 export function ActivitySidebar({ isOpen, onClose }: ActivitySidebarProps) {
-  const { cronJobs, fetchCrons, systemStatus, gateway, fetchStatus } = useHermesStore();
+  const { cronJobs, fetchCrons, systemStatus, gateway, fetchStatus } = useHermesStore(
+    useShallow(s => ({
+      cronJobs: s.cronJobs,
+      fetchCrons: s.fetchCrons,
+      systemStatus: s.systemStatus,
+      gateway: s.gateway,
+      fetchStatus: s.fetchStatus,
+    }))
+  );
 
   useEffect(() => {
     fetchCrons();

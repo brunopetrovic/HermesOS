@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getConnection } from '@/lib/connection';
+import { requireUser } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 interface HermesGoal {
   id: string;
@@ -29,6 +32,9 @@ interface GoalsFile {
 }
 
 export async function GET() {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const conn = await getConnection();
   const HERMES_HOME = conn?.homePath || path.join(process.env.HOME || '', '.hermes');
 

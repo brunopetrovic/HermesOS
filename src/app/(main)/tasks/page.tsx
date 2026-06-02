@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useInstanceStore } from '@/lib/store/instance-store';
 import { INSTANCE_CONFIGS, Task, TaskStatus } from '@/types';
 import { KanbanBoard } from '@/components/tasks/kanban-board';
@@ -9,53 +9,129 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Icon } from '@iconify/react';
+import { getRealmFromPathname } from '@/lib/realm';
+import { usePathname } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state';
 
-// Lazy load calendar (heavy dependency)
 const CalendarView = dynamic(
   () => import('@/components/calendar/calendar-view').then(m => m.CalendarView),
-  { 
+  {
     ssr: false,
     loading: () => <div className="h-[400px] bg-[#161920] rounded-xl animate-pulse" />
   }
 );
 
-// Mock tasks for demonstration
-const initialTasks: Task[] = [
-  { id: '1', title: 'Review quarterly goals', status: 'todo', priority: 'high', instance: 'personal', createdAt: new Date(), updatedAt: new Date(), dueDate: new Date(Date.now() + 86400000) },
-  { id: '2', title: 'Schedule dentist appointment', status: 'todo', priority: 'medium', instance: 'personal', createdAt: new Date(), updatedAt: new Date(), dueDate: new Date(Date.now() + 172800000) },
-  { id: '3', title: 'Update budget spreadsheet', status: 'in_progress', priority: 'low', instance: 'personal', createdAt: new Date(), updatedAt: new Date() },
-  { id: '4', title: 'Finish project proposal', status: 'review', priority: 'high', instance: 'personal', createdAt: new Date(), updatedAt: new Date(), dueDate: new Date(Date.now() + 259200000) },
-  { id: '5', title: 'Call contractor', status: 'todo', priority: 'urgent', instance: 'personal', createdAt: new Date(), updatedAt: new Date() },
-];
-
 type ViewMode = 'kanban' | 'list' | 'calendar' | 'table' | 'timeline' | 'gantt' | 'cards';
+const TASK_VIEW_MODES: ViewMode[] = ['kanban', 'list', 'calendar', 'table', 'timeline', 'gantt', 'cards'];
+
+function getInitialTaskView(): ViewMode {
+  if (typeof window === 'undefined') return 'kanban';
+  const view = new URLSearchParams(window.location.search).get('view') as ViewMode | null;
+  return view && TASK_VIEW_MODES.includes(view) ? view : 'kanban';
+}
+
+type ApiTask = {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  priority: string;
+  column?: string;
+  dueDate?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  instance?: { key: 'personal' | 'brand' | 'business' };
+};
+
+type SyncResponse = { tasks?: ApiTask[] };
+
+function toTask(t: ApiTask): Task {
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description ?? undefined,
+    status: (t.status || 'todo') as TaskStatus,
+    priority: (t.priority || 'medium') as Task['priority'],
+    instance: (t.instance?.key || 'personal') as Task['instance'],
+    dueDate: t.dueDate ? new Date(t.dueDate) : undefined,
+    completedAt: t.completedAt ? new Date(t.completedAt) : undefined,
+    createdAt: new Date(t.createdAt),
+    updatedAt: new Date(t.updatedAt),
+  };
+}
+
+async function fetchTasks(): Promise<Task[]> {
+  const res = await fetch('/api/sync/pull', { cache: 'no-store' });
+  if (!res.ok) throw new Error(`Sync pull failed (HTTP ${res.status})`);
+  const data = (await res.json()) as SyncResponse;
+  return (data.tasks || []).map(toTask);
+}
 
 export default function TasksPage() {
   const { currentInstance } = useInstanceStore();
-  const [viewMode, setViewMode] = useState<ViewMode>('kanban');
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const pathname = usePathname();
+  const realm = getRealmFromPathname(pathname);
+  const [viewMode, setViewMode] = useState<ViewMode>(getInitialTaskView);
+  const queryClient = useQueryClient();
+
+  const { data: tasks = [], isLoading, error } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: fetchTasks,
+  });
+
+  const moveTask = useMutation({
+    mutationFn: async ({ taskId, newStatus }: { taskId: string; newStatus: string }) => {
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) return;
+      await fetch('/api/sync/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'tasks',
+          data: [{
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            status: newStatus,
+            priority: task.priority,
+            instance: task.instance,
+            dueDate: task.dueDate?.toISOString(),
+          }],
+        }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const handleTaskMove = (taskId: string, newStatus: string) => {
+    moveTask.mutate({ taskId, newStatus });
+  };
 
   const instanceConfig = INSTANCE_CONFIGS[currentInstance];
   const columns = instanceConfig.kanbanColumns;
 
-  const handleTaskMove = (taskId: string, newStatus: string) => {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus as TaskStatus } : t));
-  };
-
-  const calendarEvents = tasks.map(t => ({
-    id: t.id,
-    title: t.title,
-    startDate: t.dueDate || t.createdAt,
-    endDate: t.dueDate || t.createdAt,
-    allDay: true,
-    instance: t.instance,
-    createdAt: t.createdAt,
-    updatedAt: t.updatedAt,
-  }));
+  const calendarEvents = useMemo(
+    () => tasks
+      .filter((t) => t.instance === realm || t.instance === currentInstance)
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        startDate: t.dueDate || t.createdAt,
+        endDate: t.dueDate || t.createdAt,
+        allDay: true,
+        instance: t.instance,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      })),
+    [tasks, currentInstance, realm]
+  );
 
   return (
     <div className="space-y-4 md:space-y-6 flex flex-col h-[calc(100vh-120px)] md:h-[calc(100vh-100px)] lg:h-[calc(100vh-120px)]">
-      {/* Page Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-text-primary">Tasks</h1>
@@ -63,18 +139,17 @@ export default function TasksPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-3">
-          {/* Search/Filter Bar */}
           <div className="relative flex-1 sm:flex-initial">
             <Icon icon="solar:search-linear" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
-            <input 
-              type="text" 
-              placeholder="Search tasks..." 
+            <input
+              type="text"
+              placeholder="Search tasks..."
+              aria-label="Search tasks"
               className="pl-9 pr-4 py-2 bg-surface border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 w-full sm:w-48 lg:w-64"
             />
           </div>
 
           <div className="flex items-center gap-2">
-            {/* View Switcher */}
             <div className="flex-1 sm:flex-initial flex items-center gap-1 p-1 bg-surface border border-border rounded-xl overflow-x-auto scrollbar-hide">
               <ViewButton mode="kanban" current={viewMode} onClick={setViewMode} icon={<Icon icon="solar:grid-linear" className="w-4 h-4" />} label="Kanban" />
               <ViewButton mode="list" current={viewMode} onClick={setViewMode} icon={<Icon icon="solar:list-linear" className="w-4 h-4" />} label="List" />
@@ -90,29 +165,39 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* Main Content Area */}
+      {error && (
+        <ErrorState
+          title="Tasks could not sync"
+          detail={(error as Error).message}
+          onRetry={() => queryClient.invalidateQueries({ queryKey: ['tasks'] })}
+        />
+      )}
+
       <div className="flex-1 min-h-0 overflow-y-auto pr-1 md:pr-2 custom-scrollbar pb-10 md:pb-0">
-        {viewMode === 'kanban' && (
-          <KanbanBoard 
-            columns={columns} 
-            tasks={tasks.filter(t => t.instance === currentInstance)} 
+        {isLoading ? (
+          <LoadingState title="Syncing tasks" detail="Pulling the latest task mirror from the local workspace." />
+        ) : viewMode === 'kanban' ? (
+          <KanbanBoard
+            columns={columns}
+            tasks={tasks.filter((t) => t.instance === currentInstance)}
             onTaskMove={handleTaskMove}
           />
-        )}
-
-        {viewMode === 'list' && (
+        ) : viewMode === 'list' ? (
           <div className="space-y-2">
-            {tasks.filter(t => t.instance === currentInstance).map(task => (
+            {tasks.filter((t) => t.instance === currentInstance).map((task) => (
               <TaskListItem key={task.id} task={task} />
             ))}
+            {tasks.filter((t) => t.instance === currentInstance).length === 0 && (
+              <EmptyState
+                icon="solar:clipboard-list-linear"
+                title="No tasks for this realm yet"
+                detail="Create a task manually or ask Una to turn a goal into executable work once your agent is connected."
+              />
+            )}
           </div>
-        )}
-
-        {viewMode === 'calendar' && (
-          <CalendarView events={calendarEvents.filter(e => e.instance === currentInstance)} />
-        )}
-
-        {(viewMode === 'table' || viewMode === 'timeline' || viewMode === 'gantt' || viewMode === 'cards') && (
+        ) : viewMode === 'calendar' ? (
+          <CalendarView events={calendarEvents.filter((e) => e.instance === currentInstance)} />
+        ) : (
           <Card className="flex flex-col items-center justify-center py-20 bg-surface border-border border-dashed">
             <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mb-4">
               {viewMode === 'table' ? <Icon icon="solar:table-linear" className="w-8 h-8 text-accent" /> :
@@ -138,8 +223,8 @@ function ViewButton({ mode, current, onClick, icon, label }: { mode: ViewMode, c
       onClick={() => onClick(mode)}
       className={cn(
         'p-2 rounded-lg transition-all flex items-center gap-2 group',
-        isActive 
-          ? 'bg-accent text-bg-primary shadow-lg shadow-accent/20' 
+        isActive
+          ? 'bg-accent text-bg-primary shadow-lg shadow-accent/20'
           : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'
       )}
       title={label}
@@ -166,7 +251,7 @@ function TaskListItem({ task }: { task: Task }) {
           )}
         </div>
       </div>
-      <Badge 
+      <Badge
         variant={task.priority === 'urgent' || task.priority === 'high' ? 'danger' : task.priority === 'medium' ? 'warning' : 'default'}
         size="sm"
         className="hidden sm:inline-flex"

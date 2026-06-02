@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -27,6 +27,10 @@ interface KanbanBoardProps {
 export function KanbanBoard({ columns, tasks, onTaskMove }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [localTasks, setLocalTasks] = useState<Task[]>(tasks);
+
+  useEffect(() => {
+    setLocalTasks(tasks);
+  }, [tasks]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

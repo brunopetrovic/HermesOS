@@ -36,7 +36,12 @@ export interface UnaState {
   clearMessages: () => void;
 }
 
-let messageIdCounter = 0;
+function newId(prefix: string): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 export const useUnaStore = create<UnaState>((set) => ({
   messages: [],
@@ -51,14 +56,13 @@ export const useUnaStore = create<UnaState>((set) => ({
         ...state.messages,
         {
           ...message,
-          id: `msg-${++messageIdCounter}`,
+          id: newId('msg'),
           timestamp: new Date(),
         },
       ],
     })),
 
   setLoading: (loading) => set({ isLoading: loading }),
-
   setThinking: (thinking) => set({ isThinking: thinking }),
 
   addApproval: (approval) =>
@@ -77,8 +81,6 @@ export const useUnaStore = create<UnaState>((set) => ({
     })),
 
   togglePanel: () => set((state) => ({ isPanelOpen: !state.isPanelOpen })),
-
   setPanelOpen: (open) => set({ isPanelOpen: open }),
-
   clearMessages: () => set({ messages: [] }),
 }));

@@ -4,6 +4,7 @@ import { useCommandStore, getDefaultCommands } from '@/lib/store/command-store';
 import { useInstanceStore } from '@/lib/store/instance-store';
 import { CommandBarAction, CommandCategory } from '@/types';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useShallow } from 'zustand/react/shallow';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@iconify/react';
@@ -27,8 +28,23 @@ const CATEGORY_ICONS: Record<CommandCategory, string> = {
 };
 
 export function CommandBar() {
-  const { isOpen, query, close, setQuery, addRecentCommand } = useCommandStore();
-  const { currentInstance, toggleFocusMode, toggleAmbientSound, setCurrentInstance } = useInstanceStore();
+  const { isOpen, query, close, setQuery, addRecentCommand } = useCommandStore(
+    useShallow(s => ({
+      isOpen: s.isOpen,
+      query: s.query,
+      close: s.close,
+      setQuery: s.setQuery,
+      addRecentCommand: s.addRecentCommand,
+    }))
+  );
+  const { currentInstance, toggleFocusMode, toggleAmbientSound, setCurrentInstance } = useInstanceStore(
+    useShallow(s => ({
+      currentInstance: s.currentInstance,
+      toggleFocusMode: s.toggleFocusMode,
+      toggleAmbientSound: s.toggleAmbientSound,
+      setCurrentInstance: s.setCurrentInstance,
+    }))
+  );
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -79,22 +95,7 @@ export function CommandBar() {
     }
   }, [isOpen]);
 
-  // Global keyboard shortcut
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        useCommandStore.getState().toggle();
-      }
-      // Focus mode shortcut
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'f') {
-        e.preventDefault();
-        toggleFocusMode();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleFocusMode]);
+  // Global keyboard shortcut moved to CommandBarTrigger (so this file can be dynamic-imported).
 
   const executeCommand = useCallback((cmd: CommandBarAction) => {
     addRecentCommand(cmd.id);
@@ -123,7 +124,6 @@ export function CommandBar() {
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -131,26 +131,31 @@ export function CommandBar() {
             transition={{ duration: 0.15 }}
             onClick={close}
             className="fixed inset-0 z-[200] command-backdrop"
+            aria-hidden="true"
           />
 
-          {/* Command Bar Modal */}
           <motion.div
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.98 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
             className="fixed top-[15%] left-1/2 -translate-x-1/2 z-[201] w-[90vw] max-w-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Command bar"
           >
             <div className="rounded-2xl overflow-hidden bg-[#11141a] border border-[#333a47]/40 shadow-[0_25px_50px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.05)]">
-              {/* Search Input */}
               <div className="flex items-center gap-3 px-5 h-14 border-b border-[#333a47]/30">
-                <Icon icon="solar:magnifer-linear" className="text-slate-500 shrink-0" width={18} />
+                <Icon icon="solar:magnifer-linear" className="text-slate-500 shrink-0" width={18} aria-hidden="true" />
                 <input
                   ref={inputRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleInputKeyDown}
                   placeholder="Type a command or search..."
+                  aria-label="Command search"
+                  aria-controls="command-bar-results"
+                  aria-activedescendant={flatCommands[selectedIndex] ? `cmd-${flatCommands[selectedIndex].id}` : undefined}
                   className="flex-1 bg-transparent border-none outline-none text-sm text-slate-200 placeholder-slate-600 font-medium"
                   autoComplete="off"
                   spellCheck={false}
@@ -162,29 +167,27 @@ export function CommandBar() {
                 </div>
               </div>
 
-              {/* Results */}
-              <div className="max-h-[50vh] overflow-y-auto p-2">
+              <div id="command-bar-results" className="max-h-[50vh] overflow-y-auto p-2" role="listbox" aria-label="Command results">
                 {flatCommands.length === 0 ? (
                   <div className="text-center py-8">
-                    <Icon icon="solar:ghost-linear" className="text-slate-600 mx-auto mb-2" width={32} />
+                    <Icon icon="solar:ghost-linear" className="text-slate-600 mx-auto mb-2" width={32} aria-hidden="true" />
                     <p className="text-sm text-slate-500">No commands found</p>
                   </div>
                 ) : (
                   Object.entries(groupedCommands).map(([category, cmds]) => (
                     <div key={category} className="mb-2 last:mb-0">
-                      {/* Category label */}
                       <div className="flex items-center gap-2 px-3 py-1.5">
                         <Icon
                           icon={CATEGORY_ICONS[category as CommandCategory] || 'solar:widget-linear'}
                           className="text-slate-600"
                           width={12}
+                          aria-hidden="true"
                         />
                         <span className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">
                           {CATEGORY_LABELS[category as CommandCategory] || category}
                         </span>
                       </div>
 
-                      {/* Commands */}
                       {cmds.map((cmd) => {
                         const globalIndex = flatCommands.indexOf(cmd);
                         const isSelected = globalIndex === selectedIndex;
@@ -192,6 +195,9 @@ export function CommandBar() {
                         return (
                           <button
                             key={cmd.id}
+                            id={`cmd-${cmd.id}`}
+                            role="option"
+                            aria-selected={isSelected}
                             onClick={() => executeCommand(cmd)}
                             onMouseEnter={() => setSelectedIndex(globalIndex)}
                             className={cn(
@@ -207,7 +213,7 @@ export function CommandBar() {
                                 ? 'bg-orange-500/15 text-orange-400'
                                 : 'bg-[#0c0e12] text-slate-500'
                             )}>
-                              <Icon icon={cmd.icon} width={16} />
+                              <Icon icon={cmd.icon} width={16} aria-hidden="true" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className={cn(
@@ -233,15 +239,14 @@ export function CommandBar() {
                 )}
               </div>
 
-              {/* Footer */}
               <div className="flex items-center justify-between px-4 py-2 border-t border-[#333a47]/20 text-[10px] text-slate-600">
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1">
-                    <kbd className="px-1 py-0.5 rounded bg-[#0c0e12] border border-[#333a47]/30 font-mono">↑↓</kbd>
+                    <kbd className="px-1 py-0.5 rounded bg-[#0c0e12] border border-[#333a47]/30 font-mono" aria-label="Up and down arrow keys">↑↓</kbd>
                     navigate
                   </span>
                   <span className="flex items-center gap-1">
-                    <kbd className="px-1 py-0.5 rounded bg-[#0c0e12] border border-[#333a47]/30 font-mono">↵</kbd>
+                    <kbd className="px-1 py-0.5 rounded bg-[#0c0e12] border border-[#333a47]/30 font-mono" aria-label="Enter key">↵</kbd>
                     select
                   </span>
                 </div>

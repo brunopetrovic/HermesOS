@@ -2,12 +2,20 @@
 
 import { Icon } from '@iconify/react';
 import { useHermesStore } from '@/lib/store/hermes-store';
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect } from 'react';
 
 export default function BrainSkillsPage() {
-  const { skills, skillsStats, skillsLoading, fetchSkills } = useHermesStore();
+  const { skills, skillsStats, skillsLoading, fetchSkills } = useHermesStore(
+    useShallow(s => ({
+      skills: s.skills,
+      skillsStats: s.skillsStats,
+      skillsLoading: s.skillsLoading,
+      fetchSkills: s.fetchSkills,
+    }))
+  );
 
-  useEffect(() => { fetchSkills(); }, [fetchSkills]);
+  useEffect(() => { fetchSkills(); }, []);
 
   return (
     <>

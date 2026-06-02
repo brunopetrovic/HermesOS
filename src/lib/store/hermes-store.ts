@@ -141,6 +141,12 @@ export interface HermesState {
   allTags: string[];
   
   // Actions
+  setStatus: (
+    systemStatus: HermesState['systemStatus'],
+    gateway: HermesState['gateway'],
+    platforms: HermesState['platforms'],
+    activeModel: string
+  ) => void;
   fetchStatus: () => Promise<void>;
   fetchGoals: () => Promise<void>;
   fetchCrons: () => Promise<void>;
@@ -180,6 +186,14 @@ export const useHermesStore = create<HermesState>((set, get) => ({
   // ==========================================
   // FETCH ACTIONS
   // ==========================================
+
+  setStatus: (systemStatus, gateway, platforms, activeModel) => set({
+    systemStatus,
+    gateway,
+    platforms,
+    activeModel,
+    lastStatusCheck: new Date().toISOString(),
+  }),
 
   fetchStatus: async () => {
     try {

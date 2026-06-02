@@ -6,8 +6,16 @@ import { ApprovalPrompt } from './approval-prompt';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useState, useRef, useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Icon } from '@iconify/react';
+
+type StreamDelta = { choices?: Array<{ delta?: { content?: string } }> };
+type StreamError = { error?: string };
+
+function isStreamError(payload: StreamDelta | StreamError): payload is StreamError {
+  return 'error' in payload;
+}
 
 export function ChatPanel() {
   const {
@@ -20,11 +28,24 @@ export function ChatPanel() {
     setThinking,
     updateApprovalStatus,
     setPanelOpen,
-  } = useUnaStore();
+  } = useUnaStore(
+    useShallow(s => ({
+      messages: s.messages,
+      isLoading: s.isLoading,
+      isThinking: s.isThinking,
+      approvalQueue: s.approvalQueue,
+      addMessage: s.addMessage,
+      setLoading: s.setLoading,
+      setThinking: s.setThinking,
+      updateApprovalStatus: s.updateApprovalStatus,
+      setPanelOpen: s.setPanelOpen,
+    }))
+  );
 
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -32,7 +53,90 @@ export function ChatPanel() {
 
   useEffect(() => {
     inputRef.current?.focus();
+    return () => {
+      abortRef.current?.abort();
+    };
   }, []);
+
+  const streamAssistantReply = useCallback(async (history: { role: 'user' | 'assistant' | 'system'; content: string }[]) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setThinking(true);
+    addMessage({ role: 'assistant', content: '' });
+    const replyId = useUnaStore.getState().messages[useUnaStore.getState().messages.length - 1]?.id;
+    if (!replyId) return;
+
+    try {
+      const res = await fetch('/api/agent/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'una-local',
+          messages: history,
+          stream: true,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error(`Stream failed (HTTP ${res.status})`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let accumulated = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIdx: number;
+        while ((newlineIdx = buffer.indexOf('\n\n')) !== -1) {
+          const chunk = buffer.slice(0, newlineIdx);
+          buffer = buffer.slice(newlineIdx + 2);
+          const line = chunk.replace(/^data:\s*/, '').trim();
+          if (!line || line === '[DONE]') continue;
+
+          try {
+            const payload = JSON.parse(line) as StreamDelta | StreamError;
+            if (isStreamError(payload) && payload.error) {
+              throw new Error(payload.error);
+            }
+            if (!isStreamError(payload)) {
+              const delta = payload.choices?.[0]?.delta?.content;
+              if (delta) {
+                accumulated += delta;
+                const finalText = accumulated;
+                useUnaStore.setState((state) => ({
+                  messages: state.messages.map((m: UnaMessage) => (m.id === replyId ? { ...m, content: finalText } : m)),
+                }));
+              }
+            }
+          } catch (parseError) {
+            if (parseError instanceof Error && parseError.message !== 'Unexpected end of JSON input') {
+              console.warn('Stream parse warning:', parseError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') return;
+      const message = error instanceof Error ? error.message : 'Stream failed';
+      useUnaStore.setState((state) => ({
+        messages: state.messages.map((m: UnaMessage) =>
+          m.id === replyId
+            ? { ...m, content: m.content || `Sorry — I couldn\'t reach the agent gateway (${message}).` }
+            : m
+        ),
+      }));
+    } finally {
+      setThinking(false);
+    }
+  }, [addMessage, setThinking]);
 
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
@@ -41,32 +145,15 @@ export function ChatPanel() {
     setInputValue('');
     setLoading(true);
 
-    addMessage({
-      role: 'user',
-      content: userMessage,
-    });
+    addMessage({ role: 'user', content: userMessage });
 
-    setTimeout(() => {
-      setThinking(true);
+    const history = [
+      ...useUnaStore.getState().messages.map((m: UnaMessage) => ({ role: m.role, content: m.content })),
+      { role: 'user' as const, content: userMessage },
+    ];
 
-      setTimeout(() => {
-        setThinking(false);
-
-        const responses = [
-          "I've noted that. I'll update your task list accordingly.",
-          "Got it! I've scheduled that for you. Should I confirm the details?",
-          "Interesting. I'm looking into that for you now.",
-          "I've added that to your tasks. Let me know if you need anything else!",
-        ];
-        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-
-        addMessage({
-          role: 'assistant',
-          content: randomResponse,
-        });
-        setLoading(false);
-      }, 1500);
-    }, 500);
+    setLoading(false);
+    await streamAssistantReply(history);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -78,26 +165,25 @@ export function ChatPanel() {
 
   const handleApprove = (id: string) => {
     updateApprovalStatus(id, 'approved');
-    addMessage({
-      role: 'assistant',
-      content: 'Great! I\'ve completed that action for you.',
-    });
+    addMessage({ role: 'assistant', content: "Great! I've completed that action for you." });
   };
 
   const handleDeny = (id: string) => {
     updateApprovalStatus(id, 'denied');
-    addMessage({
-      role: 'assistant',
-      content: 'No problem! I\'ve cancelled that action. Let me know if you\'d like to do something else.',
-    });
+    addMessage({ role: 'assistant', content: "No problem! I've cancelled that action. Let me know if you'd like to do something else." });
   };
 
   const pendingApprovals = approvalQueue.filter((a: ApprovalQueueItem) => a.status === 'pending');
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const update = () => setIsMobile(window.innerWidth < 768);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   return (
     <>
-      {/* Mobile Bottom Sheet Panel */}
       <AnimatePresence>
         {isMobile && (
           <>
@@ -115,10 +201,8 @@ export function ChatPanel() {
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="fixed bottom-0 left-0 right-0 z-[60] h-[85vh] bg-bg-secondary border-t border-border flex flex-col rounded-t-[2rem]"
             >
-              {/* Handle */}
               <div className="w-12 h-1.5 bg-border rounded-full mx-auto my-3" />
 
-              {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-border">
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center">
@@ -132,12 +216,12 @@ export function ChatPanel() {
                 <button
                   onClick={() => setPanelOpen(false)}
                   className="p-2 rounded-full bg-surface text-text-secondary hover:text-text-primary"
+                  aria-label="Close chat"
                 >
                   <Icon icon="solar:close-circle-linear" className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center py-10">
@@ -180,7 +264,6 @@ export function ChatPanel() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Area */}
               <div className="p-4 border-t border-border pb-safe">
                 <div className="flex items-center gap-2">
                   <Input
@@ -209,10 +292,8 @@ export function ChatPanel() {
         )}
       </AnimatePresence>
 
-      {/* Desktop Sidebar Panel */}
       {!isMobile && (
         <aside className="fixed right-0 top-12 bottom-0 z-30 w-[320px] h-[calc(100vh-48px)] bg-bg-secondary border-l border-border flex flex-col">
-          {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-border">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
@@ -226,12 +307,12 @@ export function ChatPanel() {
             <button
               onClick={() => setPanelOpen(false)}
               className="p-1.5 rounded-[var(--radius-sm)] text-text-secondary hover:text-text-primary hover:bg-surface transition-colors"
+              aria-label="Close chat"
             >
               <Icon icon="solar:close-circle-linear" className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center">
@@ -274,7 +355,6 @@ export function ChatPanel() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
           <div className="p-4 border-t border-border">
             <div className="flex items-center gap-2">
               <Input

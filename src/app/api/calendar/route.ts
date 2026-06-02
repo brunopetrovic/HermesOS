@@ -1,47 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
 import { InstanceKey } from '@prisma/client';
+import { prisma } from '@/lib/db';
+import { requireUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-interface SessionUser {
-  id: string;
-  name?: string | null;
-  email?: string | null;
-  image?: string | null;
-}
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession();
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
 
-  const user = session.user as SessionUser;
-  const instanceKey = req.nextUrl.searchParams.get('instance') as InstanceKey;
+  const instanceKey = req.nextUrl.searchParams.get('instance') as InstanceKey | null;
 
   try {
+    const now = new Date();
+    const pastLimit = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const futureLimit = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+
     const events = await prisma.calendarEvent.findMany({
       where: {
         instance: {
-          userId: user.id,
-          key: instanceKey,
+          userId: auth.user.id,
+          key: instanceKey || undefined,
         },
+        startDate: { gte: pastLimit, lte: futureLimit },
       },
       orderBy: { startDate: 'asc' },
+      take: 200,
     });
     return NextResponse.json(events);
   } catch (error) {
-    console.error('Failed to fetch events:', error);
+    console.error('API GET Calendar Error:', error);
     return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession();
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
 
-  const user = session.user as SessionUser;
-  const body = await req.json();
+  let body: {
+    title?: string;
+    description?: string;
+    startDate?: string;
+    endDate?: string;
+    allDay?: boolean;
+    instance?: InstanceKey;
+  };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  if (!body.title || !body.startDate || !body.instance) {
+    return NextResponse.json({ error: 'title, startDate, and instance are required' }, { status: 400 });
+  }
 
   try {
     const event = await prisma.calendarEvent.create({
@@ -54,7 +67,7 @@ export async function POST(req: NextRequest) {
         instance: {
           connect: {
             userId_key: {
-              userId: user.id,
+              userId: auth.user.id,
               key: body.instance,
             },
           },
@@ -63,7 +76,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(event);
   } catch (error) {
-    console.error('Failed to create event:', error);
+    console.error('API POST Calendar Error:', error);
     return NextResponse.json({ error: 'Failed to create event' }, { status: 500 });
   }
 }

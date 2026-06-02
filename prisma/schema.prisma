@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -73,7 +73,7 @@ model Instance {
   theme Json?
 
   // Instance-specific data
-  data Json @default("{}")
+  data Json
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -96,6 +96,7 @@ enum InstanceKey {
   personal
   brand
   business
+  nexus
 }
 
 // ──────────────────────────────────────────────
@@ -132,11 +133,15 @@ model Task {
   subTasks     Task[]   @relation("SubTasks")
 
   // Meta
-  tags           String[]        @default([])
+  tags           String          @default("")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   order          Int             @default(0)
   calendarEvents CalendarEvent[]
+
+  @@index([instanceId])
+  @@index([updatedAt])
+  @@index([goalId])
 }
 
 enum TaskStatus {
@@ -183,6 +188,8 @@ model CalendarEvent {
   color     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([startDate])
 }
 
 // ──────────────────────────────────────────────
@@ -209,11 +216,13 @@ model Goal {
   milestones Milestone[]
 
   // Meta
-  tags           String[]        @default([])
+  tags           String          @default("")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   tasks          Task[]
   calendarEvents CalendarEvent[]
+
+  @@index([status])
 }
 
 enum GoalStatus {
@@ -247,7 +256,7 @@ model Habit {
   title       String
   description String?
   frequency   HabitFrequency @default(daily)
-  targetDays  Int[]          @default([]) // 0=Sun, 1=Mon, etc.
+  targetDays  String         @default("") // Comma-separated: 0=Sun, 1=Mon, etc.
   targetCount Int            @default(1) // e.g. 8 glasses of water
 
   // Tracking
@@ -345,7 +354,7 @@ model Contact {
   notes     String?
 
   // Custom fields stored as JSON
-  customFields Json @default("{}")
+  customFields Json
 
   // Relations
   deals Deal[]
@@ -441,12 +450,11 @@ model JournalEntry {
   instanceId String
   instance   Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
 
-  date    DateTime
-  mood    String? // 1-5 scale or custom labels
-  energy  String? // 1-5 scale
-  content String // Markdown content
-  tags    String[] @default([])
-
+  date      DateTime
+  mood      String? // 1-5 scale or custom labels
+  energy    String? // 1-5 scale
+  content   String // Markdown content
+  tags      String   @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -462,7 +470,7 @@ model KnowledgeDoc {
   title   String
   content String // Markdown
   summary String?
-  tags    String[] @default([])
+  tags    String  @default("")
 
   instanceKey InstanceKey? // null = cross-instance
 
@@ -571,6 +579,8 @@ model SyncLog {
   status     SyncStatus    @default(pending)
   error      String?
   createdAt  DateTime      @default(now())
+
+  @@index([entityType])
 }
 
 enum SyncDirection {
@@ -584,4 +594,75 @@ enum SyncStatus {
   pending
   success
   failed
+}
+
+// ──────────────────────────────────────────────
+// AGENT COCKPIT & OPERATIONS
+// ──────────────────────────────────────────────
+
+model AgentRun {
+  id         String   @id @default(cuid())
+  userId     String?
+  instanceId String?
+  agentType  String // hermes | openclaw | openai | custom
+  status     String // queued | running | succeeded | failed | cancelled
+  duration   Int? // milliseconds
+  tokenCount Int?
+  cost       Float?
+  logs       String? // Text log output
+  config     String? // JSON config snapshot
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  events AgentRunEvent[]
+
+  @@index([agentType, status, createdAt])
+  @@index([userId, createdAt])
+}
+
+model AgentRunEvent {
+  id        String   @id @default(cuid())
+  runId     String
+  run       AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  type      String   // queued | log | gateway | approval | artifact | error | completed
+  label     String
+  detail    String?
+  severity  String   @default("info") // info | success | warning | error
+  metadata  String?  // JSON payload
+  createdAt DateTime @default(now())
+
+  @@index([runId, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String // e.g. task_created, connection_updated
+  targetType String // e.g. Task, Connection
+  targetId   String?
+  payload    String? // JSON payload
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+}
+
+model DashboardWidget {
+  id         String   @id @default(cuid())
+  instanceId String
+  type       String // fuel_gauge | system_status | cron_list | cost_chart
+  layout     String? // JSON layout config (x, y, w, h)
+  config     String? // JSON widget config
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Extension {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  version     String
+  description String?
+  manifest    String? // JSON manifest
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

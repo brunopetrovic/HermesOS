@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:routes": "node scripts/check-routes.mjs",
+    "postinstall": "prisma generate",
+    "setup": "bash setup.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -18,6 +21,7 @@
     "@prisma/client": "^6.19.3",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
+    "@tanstack/react-query": "^5.100.14",
     "@xyflow/react": "^12.10.2",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
@@ -48,6 +52,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
